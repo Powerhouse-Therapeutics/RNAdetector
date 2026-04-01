@@ -39,13 +39,13 @@ export default function DashboardPage() {
     const load = async () => {
       try {
         const [statusRes, jobsRes, refsRes] = await Promise.allSettled([
-          client.get<ServerStatus>('server/status'),
+          client.get('server/status'),
           client.get('jobs', { params: { per_page: 5, sort_by: 'created_at', sort_dir: 'desc' } }),
-          client.get<Reference[]>('references'),
+          client.get('references'),
         ]);
-        if (statusRes.status === 'fulfilled') setServerStatus(statusRes.value.data);
-        if (jobsRes.status === 'fulfilled') setRecentJobs(jobsRes.value.data.data ?? jobsRes.value.data);
-        if (refsRes.status === 'fulfilled') setReferences(refsRes.value.data);
+        if (statusRes.status === 'fulfilled') setServerStatus(statusRes.value.data?.data ?? statusRes.value.data);
+        if (jobsRes.status === 'fulfilled') setRecentJobs(jobsRes.value.data?.data ?? jobsRes.value.data);
+        if (refsRes.status === 'fulfilled') setReferences(refsRes.value.data?.data ?? refsRes.value.data);
       } finally {
         setLoading(false);
       }

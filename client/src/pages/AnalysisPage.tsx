@@ -76,9 +76,10 @@ const ANALYSIS_CONFIG: Record<
 };
 
 export default function AnalysisPage() {
-  const { type } = useParams<{ type: string }>();
+  const { type: rawType } = useParams<{ type: string }>();
   const navigate = useNavigate();
-  const config = ANALYSIS_CONFIG[type || ''] || ANALYSIS_CONFIG.long_rna;
+  const type = (rawType || 'long-rna').replace(/-/g, '_');
+  const config = ANALYSIS_CONFIG[type] || ANALYSIS_CONFIG.long_rna;
   const analysisType = (type || 'long_rna') as JobType;
 
   const [params, setParams] = useState<AnalysisParams>({
@@ -114,13 +115,23 @@ export default function AnalysisPage() {
     setParams((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Map client type names to backend job type IDs
+  const typeMap: Record<string, string> = {
+    long_rna: 'long_rna_job_type',
+    small_rna: 'small_rna_job_type',
+    circ_rna: 'circ_rna_job_type',
+    sample_group: 'samples_group_job_type',
+    diff_expr: 'diff_expr_analysis_job_type',
+    pathway: 'pathway_analysis_job_type',
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
       const job = await createJob({
         name: params.jobName,
-        type: analysisType,
+        type: (typeMap[analysisType] || analysisType) as any,
         parameters: {
           input_type: params.inputType,
           input_format: params.inputFormat,

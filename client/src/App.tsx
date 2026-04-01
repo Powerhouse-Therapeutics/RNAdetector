@@ -19,12 +19,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/analysis/long-rna" element={<AnalysisPage />} />
-          <Route path="/analysis/small-rna" element={<AnalysisPage />} />
-          <Route path="/analysis/circ-rna" element={<AnalysisPage />} />
-          <Route path="/analysis/sample-group" element={<AnalysisPage />} />
-          <Route path="/analysis/diff-expr" element={<AnalysisPage />} />
-          <Route path="/analysis/pathway" element={<AnalysisPage />} />
+          <Route path="/analysis/:type" element={<AnalysisPage />} />
           <Route path="/jobs" element={<JobsPage />} />
           <Route path="/files" element={<FileBrowserPage />} />
           <Route path="/references" element={<ReferencesPage />} />

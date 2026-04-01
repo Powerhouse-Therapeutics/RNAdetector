@@ -1,18 +1,65 @@
 import { useState } from 'react';
 import {
-  Box, Typography, Card, CardContent, TextField, Button, Stack, Divider, Avatar,
+  Box, Typography, Card, CardContent, TextField, Button, Stack, Divider, Avatar, Alert,
 } from '@mui/material';
-import { Save, Person } from '@mui/icons-material';
+import { Save, Person, Lock } from '@mui/icons-material';
 import useAuthStore from '@/stores/authStore';
 import useNotificationStore from '@/stores/notificationStore';
+import client from '@/api/client';
 
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const notify = useNotificationStore((s) => s.show);
-  const [apiUrl, setApiUrl] = useState(import.meta.env.VITE_API_URL || '/api/');
 
-  const handleSaveApi = () => {
-    notify('API URL configuration is managed via environment variables (VITE_API_URL)', 'info');
+  const [profileName, setProfileName] = useState(user?.name ?? '');
+  const [profileEmail, setProfileEmail] = useState(user?.email ?? '');
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      const { data } = await client.put('auth/profile', { name: profileName, email: profileEmail });
+      setUser(data);
+      notify('Profile updated successfully', 'success');
+    } catch (err: any) {
+      notify(err?.response?.data?.message || 'Failed to update profile', 'error');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      await client.post('auth/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      notify('Password changed successfully', 'success');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPasswordError(err?.response?.data?.error || 'Failed to change password');
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   return (
@@ -30,25 +77,41 @@ export default function SettingsPage() {
             </Typography>
             {user ? (
               <Stack spacing={2}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
                   <Avatar sx={{ bgcolor: 'primary.dark', color: 'primary.contrastText', width: 48, height: 48 }}>
                     {user.name.charAt(0).toUpperCase()}
                   </Avatar>
                   <Box>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{user.name}</Typography>
-                    <Typography variant="body2" color="text.secondary">{user.email}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {user.admin ? 'Administrator' : 'User'} &middot; Member since {new Date(user.created_at).toLocaleDateString()}
+                    </Typography>
                   </Box>
                 </Box>
                 <Divider sx={{ borderColor: 'rgba(0, 229, 255, 0.08)' }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" color="text.secondary">Role</Typography>
-                  <Typography variant="body2">{user.admin ? 'Administrator' : 'User'}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" color="text.secondary">Member since</Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </Typography>
+                <TextField
+                  label="Name"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+                <TextField
+                  label="Email"
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+                <Box>
+                  <Button
+                    variant="outlined"
+                    startIcon={<Save />}
+                    onClick={handleSaveProfile}
+                    size="small"
+                    disabled={profileSaving}
+                  >
+                    {profileSaving ? 'Saving...' : 'Save Profile'}
+                  </Button>
                 </Box>
               </Stack>
             ) : (
@@ -57,23 +120,51 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* API Configuration */}
+        {/* Change Password */}
         <Card>
           <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>API Configuration</Typography>
+            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Lock sx={{ color: 'primary.main' }} /> Change Password
+            </Typography>
+            {passwordError && (
+              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setPasswordError(null)}>
+                {passwordError}
+              </Alert>
+            )}
             <Stack spacing={2}>
               <TextField
-                label="API Base URL"
-                value={apiUrl}
-                onChange={(e) => setApiUrl(e.target.value)}
+                label="Current Password"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
                 fullWidth
                 size="small"
-                helperText="Set via VITE_API_URL environment variable at build time"
-                InputProps={{ sx: { fontFamily: 'JetBrains Mono', fontSize: '0.875rem' } }}
+              />
+              <TextField
+                label="New Password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                fullWidth
+                size="small"
+              />
+              <TextField
+                label="Confirm New Password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                fullWidth
+                size="small"
               />
               <Box>
-                <Button variant="outlined" startIcon={<Save />} onClick={handleSaveApi} size="small">
-                  Save
+                <Button
+                  variant="outlined"
+                  startIcon={<Lock />}
+                  onClick={handleChangePassword}
+                  size="small"
+                  disabled={passwordSaving || !currentPassword || !newPassword}
+                >
+                  {passwordSaving ? 'Changing...' : 'Change Password'}
                 </Button>
               </Box>
             </Stack>

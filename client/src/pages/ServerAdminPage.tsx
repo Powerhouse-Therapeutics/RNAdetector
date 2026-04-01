@@ -16,6 +16,15 @@ import {
   Chip,
   LinearProgress,
   Stack,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControlLabel,
+  Switch,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   AdminPanelSettings as AdminIcon,
@@ -24,10 +33,15 @@ import {
   Memory as CpuIcon,
   Storage as DiskIcon,
   Timer as UptimeIcon,
+  PersonAdd as PersonAddIcon,
+  Delete as DeleteIcon,
+  People as PeopleIcon,
 } from '@mui/icons-material';
-import type { ServerStatus } from '@/types';
+import type { ServerStatus, User } from '@/types';
 import { getServerStatus, getPackages, installPackage, getInstallProgress } from '@/api/server';
+import client from '@/api/client';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
+import useNotificationStore from '@/stores/notificationStore';
 
 interface PackageInfo {
   name: string;
@@ -43,6 +57,39 @@ export default function ServerAdminPage() {
   const [loading, setLoading] = useState(true);
   const [installingPkgs, setInstallingPkgs] = useState<Set<string>>(new Set());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', admin: false });
+  const notify = useNotificationStore((s) => s.show);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const { data } = await client.get('admin/users');
+      setUsers(data.data ?? data);
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleAddUser = async () => {
+    try {
+      await client.post('admin/users', newUser);
+      notify('User created successfully', 'success');
+      setShowAddUser(false);
+      setNewUser({ name: '', email: '', password: '', admin: false });
+      loadUsers();
+    } catch (err: any) {
+      notify(err?.response?.data?.message || 'Failed to create user', 'error');
+    }
+  };
+
+  const handleDeleteUser = async (id: number) => {
+    try {
+      await client.delete(`admin/users/${id}`);
+      notify('User deleted', 'success');
+      loadUsers();
+    } catch (err: any) {
+      notify(err?.response?.data?.error || 'Failed to delete user', 'error');
+    }
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -56,7 +103,8 @@ export default function ServerAdminPage() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    loadUsers();
+  }, [loadData, loadUsers]);
 
   // Poll for install progress when packages are installing
   useEffect(() => {
@@ -315,6 +363,128 @@ export default function ServerAdminPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* User Management */}
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 4, mb: 2 }}>
+        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PeopleIcon sx={{ color: 'primary.main' }} />
+          User Management
+        </Typography>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<PersonAddIcon />}
+          onClick={() => setShowAddUser(true)}
+        >
+          Add User
+        </Button>
+      </Stack>
+      <TableContainer
+        component={Paper}
+        sx={{
+          background: 'rgba(17, 24, 39, 0.6)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(0, 229, 255, 0.08)',
+        }}
+      >
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Name</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Email</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Role</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Created</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: 'text.secondary', width: 80 }}>Action</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {users.map((u) => (
+              <TableRow key={u.id}>
+                <TableCell>{u.name}</TableCell>
+                <TableCell>{u.email}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={u.admin ? 'Admin' : 'User'}
+                    size="small"
+                    color={u.admin ? 'primary' : 'default'}
+                    sx={{ fontWeight: 600 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>
+                    {new Date(u.created_at).toLocaleDateString()}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Tooltip title="Delete user">
+                    <IconButton size="small" onClick={() => handleDeleteUser(u.id)} sx={{ color: 'error.main' }}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            ))}
+            {users.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">No users found.</Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Add User Dialog */}
+      <Dialog open={showAddUser} onClose={() => setShowAddUser(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New User</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Name"
+              value={newUser.name}
+              onChange={(e) => setNewUser((p) => ({ ...p, name: e.target.value }))}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={newUser.email}
+              onChange={(e) => setNewUser((p) => ({ ...p, email: e.target.value }))}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Password"
+              type="password"
+              value={newUser.password}
+              onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
+              fullWidth
+              required
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={newUser.admin}
+                  onChange={(e) => setNewUser((p) => ({ ...p, admin: e.target.checked }))}
+                />
+              }
+              label="Administrator"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowAddUser(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleAddUser}
+            disabled={!newUser.name || !newUser.email || !newUser.password}
+          >
+            Create User
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

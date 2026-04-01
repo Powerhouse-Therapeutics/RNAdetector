@@ -24,23 +24,30 @@ export async function fetchJobs(
     params.sort_by = sorting.field;
     params.sort_dir = sorting.direction;
   }
-  const response = await client.get<PaginatedResponse<Job>>('jobs', { params });
-  return response.data;
+  const response = await client.get('jobs', { params });
+  const raw = response.data;
+  return {
+    data: raw.data ?? [],
+    current_page: raw.meta?.current_page ?? raw.current_page ?? 1,
+    last_page: raw.meta?.last_page ?? raw.last_page ?? 1,
+    per_page: raw.meta?.per_page ?? raw.per_page ?? perPage,
+    total: raw.meta?.total ?? raw.total ?? 0,
+  };
 }
 
 export async function fetchJob(id: number): Promise<Job> {
-  const response = await client.get<Job>(`jobs/${id}`);
-  return response.data;
+  const response = await client.get(`jobs/${id}`);
+  return response.data?.data ?? response.data;
 }
 
 export async function createJob(data: Partial<Job>): Promise<Job> {
-  const response = await client.post<Job>('jobs', data);
-  return response.data;
+  const response = await client.post('jobs', data);
+  return response.data?.data ?? response.data;
 }
 
 export async function submitJob(id: number): Promise<Job> {
-  const response = await client.post<Job>(`jobs/${id}/submit`);
-  return response.data;
+  const response = await client.get(`jobs/${id}/submit`);
+  return response.data?.data ?? response.data;
 }
 
 export async function deleteJob(id: number): Promise<void> {
@@ -48,6 +55,9 @@ export async function deleteJob(id: number): Promise<void> {
 }
 
 export async function fetchJobTypes(): Promise<string[]> {
-  const response = await client.get<string[]>('jobs/types');
-  return response.data;
+  const response = await client.get('job-types');
+  const raw = response.data?.data ?? response.data;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'object' && raw !== null) return Object.keys(raw);
+  return [];
 }
