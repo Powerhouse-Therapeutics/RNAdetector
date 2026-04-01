@@ -1,110 +1,211 @@
-# RNAdetector: a free user-friendly stand-alone and cloud-based system for RNA-Seq data analysis
-<img src="logo/logoRNAdetectorBlack.png" width="300" hight="200">
+# RNAdetector
 
-Developed by
+A comprehensive RNA-Seq data analysis platform with a modern web interface, server-side processing, and automated pipeline management.
 
-<img src="logo/new_unict_logo.png" width="200" hight="100">
+## Overview
 
-in collaboration with
+RNAdetector provides end-to-end RNA-Seq analysis including quantification, normalization, differential expression, pathway analysis (KEGG, GO, GSEA), and support for multiple RNA classes. It runs as a Docker-based server with a React web client for remote control.
 
-<img src="logo/ohio-logo.png" width="250" hight="125" hspace="30"><img src="logo/nerviano.png" width="150" hight="75"><img src="logo/ior_logo.jpg" width="250" hight="125" hspace="30">
+### Supported Analysis Types
 
-***RNAdetector*** is a user-friendly software for the analysis of protein-coding genes and ncRNAs from RNA-Seq data. It can be run as stand-alone application or as a cloud based system.
-## Performed analyses
-***RNAdetector*** allows to perform several types of analysis such as:
-- Quantification and normalization
-- Differential expression analysis
-- miRNA-sensitive topological pathway analysis.
+- **RNA-seq (long RNA)** -- mRNAs, lncRNAs with STAR, HISAT2, or Salmon alignment/quantification
+- **Small RNA-seq** -- miRNAs, piRNAs, snoRNAs, tRFs/tsRNAs with BWA alignment
+- **Circular RNA** -- circRNA detection via CIRI2/CIRIquant
+- **Differential Expression** -- DESeq2, edgeR, limma-voom with comprehensive QC reports
+- **Pathway Analysis** -- MITHrIL2 KEGG pathways, GO term enrichment (BP/MF/CC), and GSEA with enrichment plots
+- **Sample Group Management** -- Group samples for multi-condition comparisons
 
-***RNAdetector*** supports any organisms whose genomes\transcriptoms have been sequenced. However, some commonly studied species such as ***Human***, ***Mouse***, and ***C.elegans*** are available for download in our remote repository. The list of organisms will keeped updated.
+### Supported Organisms
 
-***Any other organisms*** can be easily added by uploading their genomes and\or transcriptomes and the genomic coordinates of the RNA molecules intended to be analyzed following the step-by-step procedures detailed in the user interface.
-## Non-coding RNAs analyzed
-In addition to mRNAs, ***RNAdetector*** can also analyze several classes of small and long ncRNAs. Specifically, for Human, Mouse and C.elegans RNA-Seq data the following ncRNA classes can be analyzed:
-##### Small non-coding RNAs
-- micro RNAs (miRNAs)
-- PIWI-associated RNAs (piRNAs)
-- Small nucleolar RNAs (snoRNAs)
-- tRNA derived small ncRNAs (tRFs and tsRNAs)
-##### Long non-coding RNAs
-- long non-coding RNAs (lncRNAs)
-- transcribed UltraConserved Regions (tUCRs) (only for human)
-- circular RNAs (circRNAs)
+Pre-built genome and transcriptome packages:
 
-The genomic annotations of all these above-mentioned classes of ncRNAs are already available for downloading from our remote repository. However, additional ncRNAs classes for human and other organism can be analyzed by uploading their genomic annotation or indexed transcriptome on ***RNAdetector*** following the step-by-step procedures detailed in the user interface. Therefore, any class of ncRNAs of any biological species can be analyzed by ***RNAdetector***.
+| Organism | Genome Builds | Aligners Indexed |
+|----------|--------------|-----------------|
+| Human | hg19, hg38 | STAR, HISAT2, BWA, Salmon |
+| Mouse | mm10, mm39 | STAR, HISAT2, BWA, Salmon |
 
-## Features
-***RNAdetector*** has several features such as:
-- Easy installation and dependencies management
-- Cross-platform (Windows Professional, macOS, Ubuntu) and deployable as ***cloud-based system***
-- Remotely controllable <!-- Completely off line -->
-- Graphical User Interface (GUI)
-- Interactive graphical reports with the results of the analysis
-# RNAdetector installation
-**Detailed information concerning the [system requirements and installation](https://github.com/alessandrolaferlita/RNAdetector/wiki/Requirements-and-Setup) can be found in the wiki section**
-## Installation on Windows Professional
-- Install **Docker Desktop** in your computer by downloading the installer at this link [Docker Desktop](https://hub.docker.com/editions/community/docker-ce-desktop-windows/)
-- Once the installer has been downloaded, then double-click **Docker Desktop Installer.exe** to run it.
-- When prompted, select "Enable Hyper-V Windows Features" option in the Configuration page.
-- Follow the instructions on the installation wizard to authorize the installer and proceed with the installation.
-- When the installation has been done successfully, click *Close* to complete **Docker** installation process.
-- Now that **Docker Desktop** is installed, it is possible to proceed with **RNAdetector** installation by downloading its installer [RNAdetector installer](https://rnadetector.atlas.dmi.unict.it/download.html) and following the instructions through the installation wizard.
-- **RNAdetector** is installed! Now, you will find **RNAdetector** in your application list.
+Custom organisms can be added by uploading genome FASTA, transcriptome, and annotation files.
 
-## Installation on macOS
-- Before proceed with **Docker Desktop** installation, check the system requirements at this [link](https://docs.docker.com/docker-for-mac/install/#system-requirements)
-- Install **Docker Desktop** in your computer by downloading the installer at this link [Docker Desktop](https://hub.docker.com/editions/community/docker-ce-desktop-mac/)
-- Once the installer has been downloaded, then run the **Docker.dmg** installer, and drag and drop the Docker icon the Applications folder.
-- Now that **Docker Desktop** is installed, it is possible to proceed with **RNAdetector** installation by downloading its installer [RNAdetector installer](https://rnadetector.atlas.dmi.unict.it/download.html) and following the instructions through the installation wizard.
-- Drag and drop the **RNAdetector icon** to the Applications folder to complete the installation.
-- **RNAdetector** is installed! Now, you will find **RNAdetector** in your application list.
+## Architecture
 
-## Installation on Ubuntu
-- Open terminal.
-
-- Install **Docker** in your computer by writing the following commands in your terminal (one by one).
 ```
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io
+client/          React web app (Vite + React 18 + MUI v6)
+WS/              Laravel PHP backend (API server)
+scripts/         Bioinformatics pipeline scripts (Bash, R)
+scripts/base/    Docker build files
 ```
 
-- Set your user name in Docker. If you do not know your user name, write the following command `whoami` in your terminal.
+- **Server**: Docker container running Apache, MySQL, PHP, R, and all bioinformatics tools
+- **Client**: Modern React SPA connecting to the server via REST API with JWT authentication
+- **Pipeline**: Bash/R scripts orchestrated by Laravel queue workers
+
+## Quick Start
+
+### Server Deployment
+
+```bash
+# Pull and run the Docker container
+docker run -d \
+  --name rnadetector \
+  -p 9898:80 \
+  -v /path/to/data:/data \
+  -v /path/to/storage:/rnadetector/ws/storage/app/ \
+  -e AUTO_INSTALL_PACKAGES="Mouse_mm10_genome,Mouse_mm10_transcriptome" \
+  -e ADMIN_EMAIL="admin@yourdomain.com" \
+  -e ADMIN_PASSWORD="your-secure-password" \
+  -e BROWSABLE_VOLUMES="/data:Sequencing Data" \
+  alaimos/rnadetector:latest
 ```
-sudo usermod -aG docker YOUR_USER_NAME
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTO_INSTALL_PACKAGES` | *(empty)* | Comma-separated package names to auto-install on first boot |
+| `ADMIN_EMAIL` | `admin@admin` | Default admin account email |
+| `ADMIN_PASSWORD` | `password123` | Default admin account password |
+| `BROWSABLE_VOLUMES` | `/data:Data Files` | Comma-separated `path:label` pairs for file browser |
+
+### Client Setup
+
+```bash
+cd client
+npm install
+npm run dev
 ```
 
-- Log out and log in from Ubuntu.
+The client dev server proxies API requests to `http://localhost:9898` by default. Configure via `VITE_API_URL` environment variable.
 
-- Download the *RNAdetector.deb* file from [RNAdetector web site](https://rnadetector.atlas.dmi.unict.it/download.html).
+### Login
 
-- Open again the terminal and install **RNAdetector** by writing the following command.
+Navigate to `http://localhost:5173` (dev) or your deployed URL. Log in with the admin credentials configured above.
+
+## API Reference
+
+### Authentication
+
 ```
-sudo dpkg -i RNAdetector.deb
+POST /api/auth/login      # Email/password login, returns JWT
+POST /api/auth/refresh    # Refresh expired token
+POST /api/auth/logout     # Invalidate token
+GET  /api/auth/me         # Current user info
 ```
 
-- **RNAdetector** is installed! Now, you can find **RNAdetector** in your application list.
+### File Browser
 
-# RNAdetector user guide
-RNAdetector allows users to perform several RNA-Seq data analysis by using our intuitive GUI. Users can select from the dashboard:
+```
+GET /api/files/volumes    # List configured data volumes
+GET /api/files/browse     # Browse directory (path param)
+GET /api/files/search     # Search files (path, pattern params)
+```
 
-- **Small RNA-Seq analysis** for the analysis of small RNA-Seq data. It can be used for identification and quantification of small ncRNAs such as ***miRNAs***, ***piRNAs***, ***tRFs***, and ***tsRNAs***.
-- **RNA-Seq analysis** for the analysis of standard RNA-Seq data. It can be used for the identification and quatification of RNA species longer than 200 nt such as ***mRNAs***, ***lncRNAs***, and ***tUCR***.
-- **Circular RNA analysis** for identification and quantification of ***circRNAs***.
+### Jobs
 
-Once one of the abovementioned analysis is performed, it is possibile to execute downstream analysis such as:
+```
+GET    /api/jobs           # List jobs (paginated)
+POST   /api/jobs           # Create job
+GET    /api/jobs/{id}      # Get job details
+DELETE /api/jobs/{id}      # Delete job
+GET    /api/jobs/{id}/submit  # Submit job for execution
+```
 
-- **Differential expression analysis** to compare difference in the expression profile of such RNA molecules between case vs control samples;
-- **Pathway analysis** to execute a  miRNA-sensitive topological pathway analysis on the results obtained by the differential expression analysis. However, currently only the differentially expressed ***mRNAs*** and ***miRNAs*** can be analyzed.
+### Server Management
 
-**A more detailed [user guide](https://github.com/alessandrolaferlita/RNAdetector/wiki) is available in the wiki section**
+```
+GET  /api/server/status              # Server health and resources
+GET  /api/server/packages            # List available packages
+POST /api/server/packages/{name}/install  # Install a package
+GET  /api/server/packages/{name}/status   # Installation progress
+```
 
-# Cite us
-if you use ***RNAdetector*** cite: La Ferlita A, Alaimo S, Di Bella S, Martorana E, Laliotis GI, Bertoni F, Cascione L, Tsichlis PN, Ferro A, Bosotti R, Pulvirenti A. RNAdetector: a free user-friendly stand-alone and cloud-based system for RNA-Seq data analysis. BMC Bioinformatics. 2021 Jun 3;22(1):298. doi: 10.1186/s12859-021-04211-7.
-# Contact us 
-[Alessandro La Ferlita](https://www.researchgate.net/profile/Alessandro_La_Ferlita2) (alessandro.laferlita@unict.it)
+### Templates
 
-[Salvatore Alaimo](https://www.researchgate.net/profile/Salvatore_Alaimo) (alaimos@dmi.unict.it)
+```
+GET /api/templates                  # List available templates
+GET /api/templates/{name}/download  # Download template file
+```
 
-[Alfredo Pulvirenti](https://www.researchgate.net/profile/Alfredo_Pulvirenti) (alfredo.pulvirenti@unict.it)
+### References & Annotations
+
+```
+GET /api/references          # List reference genomes
+GET /api/references/packages # List downloadable packages
+GET /api/annotations         # List annotations
+```
+
+## Resource Configuration
+
+Default analysis settings: **16 threads, 32 GB RAM**. The server reports available resources and per-workflow recommendations via the `/api/sys-info` endpoint. The web UI provides interactive sliders with color-coded zones (green=recommended, yellow=acceptable, red=exceeds capacity).
+
+## Reports
+
+Each analysis generates an HTML report with:
+
+- **Materials and Methods** -- Publication-ready text with tool citations
+- **All R code visible** -- Reproducible with `code_folding: show`
+- **BibTeX bibliography** -- Auto-generated references for all tools used
+- **QC metrics** -- Read counts, mapping rates, trimming statistics
+- **Interactive tables and plots** -- Filterable, sortable result tables
+- **Session info** -- Full R session information for reproducibility
+- **Dark theme** -- Consistent with the web UI aesthetic
+
+### Pathway Analysis Reports Include
+
+- MITHrIL2 KEGG pathway topology analysis with heatmaps
+- GO term enrichment (Biological Process, Molecular Function, Cellular Component) with dot plots
+- GSEA with ridge plots and individual enrichment plots for top pathways
+- Enrichment maps for GO term relationships
+
+## Metadata Templates
+
+Download pre-formatted TSV templates from the web UI or API:
+
+- `metadata_single_end.tsv` -- Single-end experiment sample metadata
+- `metadata_paired_end.tsv` -- Paired-end experiment sample metadata
+- `sample_groups.tsv` -- Sample group definitions
+- `contrasts.tsv` -- Contrast definitions for differential expression
+
+## Tech Stack
+
+### Server
+- **Runtime**: PHP 7.4, R 4.x, Python 3
+- **Framework**: Laravel 7
+- **Database**: MySQL
+- **Queue**: Beanstalkd
+- **Web Server**: Apache 2
+
+### Bioinformatics Tools
+STAR, HISAT2, BWA, Salmon, StringTie, featureCounts, HTSeq, Trim Galore, FastQC, SAMtools, BEDTools, CIRI2, CIRIquant, DESeq2, edgeR, limma, clusterProfiler, enrichplot, fgsea, MITHrIL2
+
+### Client
+- **Framework**: React 18 with TypeScript
+- **Build**: Vite 5
+- **UI**: MUI v6 (Material UI) with dark futuristic theme
+- **State**: Zustand
+- **HTTP**: Axios with JWT interceptors
+
+## Development
+
+### Backend
+
+```bash
+cd WS
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate --seed
+php artisan serve --port=9898
+```
+
+### Frontend
+
+```bash
+cd client
+npm install
+npm run dev      # Development server with HMR
+npm run build    # Production build
+```
+
+## License
+
+This project is licensed under the MIT License.
