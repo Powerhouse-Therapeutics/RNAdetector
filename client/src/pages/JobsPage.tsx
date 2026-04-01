@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -269,8 +269,13 @@ export default function JobsPage() {
     }
   }, [page, rowsPerPage, notify]);
 
+  // Initial load only shows skeleton; subsequent polls update silently
+  const initialLoadDone = useRef(false);
   useEffect(() => {
-    setLoading(true);
+    if (!initialLoadDone.current) {
+      setLoading(true);
+      initialLoadDone.current = true;
+    }
     loadJobs();
   }, [loadJobs]);
 
@@ -471,7 +476,7 @@ export default function JobsPage() {
               filteredJobs.map((job) => {
                 const isExpanded = expandedId === job.id;
                 return (
-                  <Box component="tbody" key={job.id}>
+                  <React.Fragment key={job.id}>
                     <TableRow
                       hover
                       onClick={() => toggleExpand(job.id)}
@@ -525,7 +530,7 @@ export default function JobsPage() {
                         </Collapse>
                       </TableCell>
                     </TableRow>
-                  </Box>
+                  </React.Fragment>
                 );
               })
             )}

@@ -10,7 +10,6 @@ import {
   MenuItem,
   Stack,
   Paper,
-  Chip,
   Alert,
   Grid,
   List,
@@ -22,8 +21,25 @@ import {
   Switch,
   CircularProgress,
   IconButton,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
-import { Science as AnalysisIcon, Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import {
+  Science as AnalysisIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  FolderOpen as FolderOpenIcon,
+  FileUpload as FileUploadIcon,
+} from '@mui/icons-material';
 import type { FileEntry, JobType, Reference, Annotation, Job } from '@/types';
 import { createJob, submitJob, fetchJobs } from '@/api/jobs';
 import { fetchReferences } from '@/api/references';
@@ -160,6 +176,45 @@ const ANALYSIS_CONFIG: Record<
 
 const isSequencing = (t: string) => ['long_rna', 'small_rna', 'circ_rna', 'full_pipeline'].includes(t);
 
+/* ---------- sample entry for sequencing file input ---------- */
+interface SampleEntry {
+  name: string;
+  r1Path: string;
+  r2Path: string; // empty for single-end
+}
+
+function inferSampleName(filepath: string): string {
+  const basename = filepath.split('/').pop() || '';
+  return basename
+    .replace(/[._](R[12])[._].*$/, '')
+    .replace(/\.fastq\.gz$|\.fq\.gz$|\.fastq$|\.fq$|\.bam$/, '')
+    .replace(/_S\d+_L\d+$/, '')
+    || basename;
+}
+
+function parseBulkInput(text: string, paired: boolean): SampleEntry[] {
+  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  if (!paired) {
+    return lines.map(path => ({ name: inferSampleName(path), r1Path: path, r2Path: '' }));
+  }
+  const r1Files = lines.filter(l => /_R1[_.]/.test(l) || /\.R1\./.test(l) || /_1\.f/.test(l));
+  const r2Files = lines.filter(l => /_R2[_.]/.test(l) || /\.R2\./.test(l) || /_2\.f/.test(l));
+  const samples: SampleEntry[] = [];
+  for (const r1 of r1Files) {
+    const name = inferSampleName(r1);
+    const r2 = r2Files.find(f => inferSampleName(f) === name) || '';
+    samples.push({ name, r1Path: r1, r2Path: r2 });
+  }
+  // Add any unpaired lines that weren't matched as R1 or R2
+  const unmatched = lines.filter(
+    l => !r1Files.includes(l) && !r2Files.includes(l)
+  );
+  for (const path of unmatched) {
+    samples.push({ name: inferSampleName(path), r1Path: path, r2Path: '' });
+  }
+  return samples;
+}
+
 const paperSx = {
   p: 2,
   background: 'rgba(17, 24, 39, 0.6)',
@@ -190,6 +245,12 @@ export default function AnalysisPage() {
     threads: 4,
     memoryGB: 8,
   });
+  /* ----- sample management state ----- */
+  const [samples, setSamples] = useState<SampleEntry[]>([]);
+  const [showBulkInput, setShowBulkInput] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [browseTarget, setBrowseTarget] = useState<{ sampleIdx: number; field: 'r1' | 'r2' } | null>(null);
+
   const [groupColors, setGroupColors] = useState<{name: string; color: string}[]>([
     { name: 'Control', color: '#3B82F6' },
     { name: 'Treatment', color: '#EF4444' },
@@ -282,6 +343,41 @@ export default function AnalysisPage() {
   const updateSeq = <K extends keyof SeqParams>(key: K, value: SeqParams[K]) =>
     setSeqParams((prev) => ({ ...prev, [key]: value }));
 
+  const addSample = () =>
+    setSamples((prev) => [...prev, { name: '', r1Path: '', r2Path: '' }]);
+
+  const removeSample = (idx: number) =>
+    setSamples((prev) => prev.filter((_, i) => i !== idx));
+
+  const updateSample = (idx: number, field: keyof SampleEntry, value: string) =>
+    setSamples((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
+
+  const handleBrowseSelect = (files: FileEntry[]) => {
+    if (browseTarget && files.length > 0) {
+      const file = files[0];
+      const { sampleIdx, field } = browseTarget;
+      setSamples((prev) =>
+        prev.map((s, i) => {
+          if (i !== sampleIdx) return s;
+          const updated = { ...s, [field === 'r1' ? 'r1Path' : 'r2Path']: file.path };
+          // Auto-infer name if currently empty
+          if (!s.name && field === 'r1') {
+            updated.name = inferSampleName(file.path);
+          }
+          return updated;
+        }),
+      );
+    }
+    setBrowseTarget(null);
+  };
+
+  const handleBulkImport = () => {
+    const parsed = parseBulkInput(bulkText, seqParams.inputType === 'paired');
+    setSamples((prev) => [...prev, ...parsed]);
+    setBulkText('');
+    setShowBulkInput(false);
+  };
+
   const toggleSeqJob = useCallback(
     (jobId: number) => {
       setSgParams((prev) => {
@@ -326,12 +422,13 @@ export default function AnalysisPage() {
         backendParams = {
           paired: seqParams.inputType === 'paired',
           inputType: seqParams.inputFormat === 'BAM' ? 'BAM' : 'fastq',
-          firstInputFile: seqParams.files[0]?.path ?? '',
+          firstInputFile: samples[0]?.r1Path ?? '',
           algorithm: algoBackend,
           threads: seqParams.threads,
+          samples: samples.map((s) => ({ name: s.name, r1: s.r1Path, r2: s.r2Path })),
         };
-        if (seqParams.inputType === 'paired' && seqParams.files.length > 1) {
-          backendParams.secondInputFile = seqParams.files[1].path;
+        if (seqParams.inputType === 'paired' && samples[0]?.r2Path) {
+          backendParams.secondInputFile = samples[0].r2Path;
         }
         const ref = seqParams.referenceId ? references.find((r) => r.id === seqParams.referenceId) : null;
         if (ref) backendParams.genome = ref.name;
@@ -451,23 +548,214 @@ export default function AnalysisPage() {
   };
 
   // -- Step: Input Files (sequencing only) --
+  const isPaired = seqParams.inputType === 'paired';
   const inputFilesStep: StepConfig = {
     label: 'Input Files',
     validate: () => {
-      if (seqParams.files.length === 0) return 'Please select at least one input file.';
+      if (samples.length === 0) return 'Please add at least one sample.';
+      for (let i = 0; i < samples.length; i++) {
+        if (!samples[i].r1Path) return `Sample ${i + 1}: R1 file path is required.`;
+        if (isPaired && !samples[i].r2Path) return `Sample ${i + 1}: R2 file path is required for paired-end.`;
+      }
       return true;
     },
     content: (
       <Stack spacing={2}>
         <Typography variant="body2" color="text.secondary">
-          Select your {seqParams.inputFormat} input files from the server file system.
+          Add your {seqParams.inputFormat} samples. Each sample needs a name and file path(s).
         </Typography>
-        <FileSelector
-          value={seqParams.files}
-          onChange={(files) => updateSeq('files', files)}
-          multiple
-          filters={config.fileExtensions}
-        />
+
+        {/* Sample table */}
+        {samples.length > 0 && (
+          <TableContainer component={Paper} sx={{ ...paperSx, p: 0 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, borderBottom: '1px solid rgba(0, 229, 255, 0.15)' }}>#</TableCell>
+                  <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, borderBottom: '1px solid rgba(0, 229, 255, 0.15)' }}>Sample Name</TableCell>
+                  <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, borderBottom: '1px solid rgba(0, 229, 255, 0.15)' }}>R1 File</TableCell>
+                  {isPaired && (
+                    <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, borderBottom: '1px solid rgba(0, 229, 255, 0.15)' }}>R2 File</TableCell>
+                  )}
+                  <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.15)', width: 48 }} />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {samples.map((sample, idx) => (
+                  <TableRow key={idx} sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                    <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', color: 'text.secondary' }}>{idx + 1}</TableCell>
+                    <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', minWidth: 160 }}>
+                      <TextField
+                        value={sample.name}
+                        onChange={(e) => updateSample(idx, 'name', e.target.value)}
+                        size="small"
+                        variant="outlined"
+                        placeholder="Sample name"
+                        fullWidth
+                        sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.85rem' } }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', minWidth: 200 }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <TextField
+                          value={sample.r1Path}
+                          onChange={(e) => updateSample(idx, 'r1Path', e.target.value)}
+                          size="small"
+                          variant="outlined"
+                          placeholder="/path/to/file_R1.fastq.gz"
+                          fullWidth
+                          sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.8rem' } }}
+                        />
+                        <IconButton
+                          size="small"
+                          onClick={() => setBrowseTarget({ sampleIdx: idx, field: 'r1' })}
+                          sx={{ color: '#00e5ff', flexShrink: 0 }}
+                          title="Browse server files"
+                        >
+                          <FolderOpenIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </TableCell>
+                    {isPaired && (
+                      <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', minWidth: 200 }}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <TextField
+                            value={sample.r2Path}
+                            onChange={(e) => updateSample(idx, 'r2Path', e.target.value)}
+                            size="small"
+                            variant="outlined"
+                            placeholder="/path/to/file_R2.fastq.gz"
+                            fullWidth
+                            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.8rem' } }}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => setBrowseTarget({ sampleIdx: idx, field: 'r2' })}
+                            sx={{ color: '#00e5ff', flexShrink: 0 }}
+                            title="Browse server files"
+                          >
+                            <FolderOpenIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </TableCell>
+                    )}
+                    <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)' }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => removeSample(idx)}
+                        sx={{ color: 'error.main' }}
+                        title="Remove sample"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {/* Action buttons */}
+        <Stack direction="row" spacing={2}>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={addSample}
+            sx={{ borderColor: 'rgba(0, 229, 255, 0.3)', color: '#00e5ff' }}
+          >
+            Add Sample
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<FileUploadIcon />}
+            onClick={() => setShowBulkInput(!showBulkInput)}
+            sx={{ borderColor: 'rgba(0, 229, 255, 0.3)', color: '#00e5ff' }}
+          >
+            Bulk Import
+          </Button>
+        </Stack>
+
+        {/* Bulk import textarea */}
+        {showBulkInput && (
+          <Paper sx={{ ...paperSx, p: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Paste file paths (one per line)
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+              {isPaired
+                ? 'Paste R1 and R2 paths. Files will be auto-paired by matching sample names (e.g., _R1_ and _R2_ patterns).'
+                : 'Paste one file path per line. Sample names will be inferred from filenames.'}
+            </Typography>
+            <TextField
+              multiline
+              rows={6}
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              fullWidth
+              placeholder={isPaired
+                ? '/data/fastq/sample1_R1_001.fastq.gz\n/data/fastq/sample1_R2_001.fastq.gz\n/data/fastq/sample2_R1_001.fastq.gz\n/data/fastq/sample2_R2_001.fastq.gz'
+                : '/data/fastq/sample1.fastq.gz\n/data/fastq/sample2.fastq.gz'}
+              sx={{ mb: 1, '& .MuiOutlinedInput-root': { fontSize: '0.85rem', fontFamily: 'monospace' } }}
+            />
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={handleBulkImport}
+                disabled={!bulkText.trim()}
+                sx={{ bgcolor: '#00e5ff', color: '#000', '&:hover': { bgcolor: '#00b8d4' } }}
+              >
+                Import
+              </Button>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => { setShowBulkInput(false); setBulkText(''); }}
+                sx={{ color: 'text.secondary' }}
+              >
+                Cancel
+              </Button>
+            </Stack>
+          </Paper>
+        )}
+
+        {samples.length === 0 && (
+          <Alert severity="info" sx={{ mt: 1 }}>
+            No samples added yet. Click &quot;Add Sample&quot; to add files individually, or use &quot;Bulk Import&quot; to paste multiple file paths at once.
+          </Alert>
+        )}
+
+        {/* File browse dialog - reuses FileSelector's underlying ServerFileBrowser */}
+        <Dialog
+          open={browseTarget !== null}
+          onClose={() => setBrowseTarget(null)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{ sx: { background: 'rgba(17, 24, 39, 0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0, 229, 255, 0.15)' } }}
+        >
+          <DialogTitle sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.1)' }}>
+            Select {browseTarget?.field === 'r2' ? 'R2' : 'R1'} File
+            {browseTarget !== null && samples[browseTarget.sampleIdx]?.name && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                for sample: {samples[browseTarget.sampleIdx].name}
+              </Typography>
+            )}
+          </DialogTitle>
+          <DialogContent sx={{ p: 0, mt: 1 }}>
+            <FileSelector
+              value={[]}
+              onChange={(files) => handleBrowseSelect(files)}
+              multiple={false}
+              filters={config.fileExtensions}
+            />
+          </DialogContent>
+          <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.1)' }}>
+            <Button onClick={() => setBrowseTarget(null)} sx={{ color: 'text.secondary' }}>
+              Cancel
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Stack>
     ),
   };
@@ -965,7 +1253,7 @@ export default function AnalysisPage() {
       items.push(
         { label: 'Input Type', value: seqParams.inputType === 'single' ? 'Single-end' : 'Paired-end' },
         { label: 'Input Format', value: seqParams.inputFormat },
-        { label: 'Files', value: `${seqParams.files.length} file(s) selected` },
+        { label: 'Samples', value: `${samples.length} sample(s)` },
         { label: 'Algorithm', value: seqParams.algorithm },
         {
           label: 'Reference',
@@ -1038,23 +1326,36 @@ export default function AnalysisPage() {
             ))}
           </List>
 
-          {/* Show file chips for sequencing types */}
-          {isSequencing(analysisType) && seqParams.files.length > 0 && (
+          {/* Show samples table for sequencing types */}
+          {isSequencing(analysisType) && samples.length > 0 && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                Selected Files:
+                Samples:
               </Typography>
-              <Stack direction="row" flexWrap="wrap" gap={0.5}>
-                {seqParams.files.map((f) => (
-                  <Chip
-                    key={f.path}
-                    label={f.name}
-                    size="small"
-                    variant="outlined"
-                    sx={{ borderColor: 'rgba(0, 229, 255, 0.2)', color: 'text.secondary' }}
-                  />
-                ))}
-              </Stack>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(0, 229, 255, 0.15)', py: 0.5 }}>Name</TableCell>
+                      <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(0, 229, 255, 0.15)', py: 0.5 }}>R1</TableCell>
+                      {seqParams.inputType === 'paired' && (
+                        <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(0, 229, 255, 0.15)', py: 0.5 }}>R2</TableCell>
+                      )}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {samples.map((s, idx) => (
+                      <TableRow key={idx} sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                        <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', fontSize: '0.8rem', py: 0.5 }}>{s.name || '(unnamed)'}</TableCell>
+                        <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', fontSize: '0.75rem', py: 0.5, fontFamily: 'monospace', color: 'text.secondary' }}>{s.r1Path.split('/').pop()}</TableCell>
+                        {seqParams.inputType === 'paired' && (
+                          <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', fontSize: '0.75rem', py: 0.5, fontFamily: 'monospace', color: 'text.secondary' }}>{s.r2Path.split('/').pop()}</TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </Box>
           )}
         </Paper>
@@ -1100,7 +1401,7 @@ export default function AnalysisPage() {
     // fallback
     return [setupStep, reviewStep];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisType, jobName, seqParams, sgParams, degsParams, pwParams, groupColors, references, annotations, allJobs, loadingJobs, submitError, config]);
+  }, [analysisType, jobName, seqParams, sgParams, degsParams, pwParams, groupColors, references, annotations, allJobs, loadingJobs, submitError, config, samples, showBulkInput, bulkText, browseTarget]);
 
   return (
     <Box>
