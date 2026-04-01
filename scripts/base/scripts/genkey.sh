@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
-php /rnadetector/ws/artisan auth:token "admin@admin" "$@"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@admin.local}"
+php /rnadetector/ws/artisan auth:token "$ADMIN_EMAIL" "$@"

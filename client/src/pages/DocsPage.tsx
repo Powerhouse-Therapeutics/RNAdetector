@@ -340,7 +340,7 @@ export default function DocsPage() {
   -v /path/to/data:/data \\
   -v rnadetector-storage:/rnadetector/ws/storage/app/ \\
   -e ADMIN_EMAIL="admin@yourdomain.com" \\
-  -e ADMIN_PASSWORD="your-secure-password" \\
+  --env-file /path/to/.env \\
   -e BROWSABLE_VOLUMES="/data:Sequencing Data" \\
   alaimos/rnadetector:v0.0.3`}</CodeBlock>
 
@@ -355,8 +355,8 @@ export default function DocsPage() {
                 </TableHead>
                 <TableBody>
                   {[
-                    ['ADMIN_EMAIL', 'admin@admin', 'Admin login email'],
-                    ['ADMIN_PASSWORD', 'password123', 'Admin login password'],
+                    ['ADMIN_EMAIL', '(set in .env)', 'Admin login email'],
+                    ['ADMIN_PASSWORD', '(set in .env)', 'Admin login password'],
                     ['BROWSABLE_VOLUMES', '/data:Data Files', 'Comma-separated path:label pairs for file browser'],
                     ['AUTO_INSTALL_PACKAGES', '(empty)', 'Comma-separated packages to install on first boot'],
                   ].map(([v, d, desc]) => (

@@ -23,3 +23,13 @@ scripts/base/Human_hg19_circRNAs.gtf
 client/dist/
 client/node_modules/
 storage/
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.json

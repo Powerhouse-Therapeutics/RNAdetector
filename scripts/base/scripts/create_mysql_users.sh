@@ -2,9 +2,9 @@
 
 [[ $DEBUG == true ]] && set -x
 
-DB_NAME="rnadetector"
-DB_USER="rnadetector"
-DB_PASS="secret"
+DB_NAME="${DB_DATABASE:-rnadetector}"
+DB_USER="${DB_USERNAME:-rnadetector}"
+DB_PASS="${DB_PASSWORD:-$(head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 24)}"
 MYSQL_CHARSET="utf8"
 MYSQL_COLLATION="utf8_unicode_ci"
 

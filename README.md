@@ -44,27 +44,31 @@ scripts/base/    Docker build files
 ### Server Deployment
 
 ```bash
-# Pull and run the Docker container
+# 1. Copy and edit the environment file
+cp .env.example .env
+# Edit .env to set ADMIN_EMAIL, ADMIN_PASSWORD, and other settings
+
+# 2. Pull and run the Docker container
 docker run -d \
   --name rnadetector \
   -p 9898:80 \
   -v /path/to/data:/data \
   -v /path/to/storage:/rnadetector/ws/storage/app/ \
-  -e AUTO_INSTALL_PACKAGES="Mouse_mm10_genome,Mouse_mm10_transcriptome" \
-  -e ADMIN_EMAIL="admin@yourdomain.com" \
-  -e ADMIN_PASSWORD="your-secure-password" \
-  -e BROWSABLE_VOLUMES="/data:Sequencing Data" \
+  --env-file .env \
   alaimos/rnadetector:latest
 ```
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AUTO_INSTALL_PACKAGES` | *(empty)* | Comma-separated package names to auto-install on first boot |
-| `ADMIN_EMAIL` | `admin@admin` | Default admin account email |
-| `ADMIN_PASSWORD` | `password123` | Default admin account password |
-| `BROWSABLE_VOLUMES` | `/data:Data Files` | Comma-separated `path:label` pairs for file browser |
+See `.env.example` for all available configuration options. Copy it to `.env` and customize:
+
+| Variable | Description |
+|----------|-------------|
+| `ADMIN_EMAIL` | Admin account email for login |
+| `ADMIN_PASSWORD` | Admin account password (change from default!) |
+| `AUTO_INSTALL_PACKAGES` | Comma-separated package names to auto-install on first boot |
+| `BROWSABLE_VOLUMES` | Comma-separated `path:label` pairs for file browser |
+| `DB_PASSWORD` | Internal database password (auto-generated if not set) |
 
 ### Client Setup
 
