@@ -44,6 +44,7 @@ import type { FileEntry, JobType, Reference, Annotation, Job } from '@/types';
 import { createJob, submitJob, fetchJobs } from '@/api/jobs';
 import { fetchReferences } from '@/api/references';
 import { fetchAnnotations } from '@/api/annotations';
+import { getPackages } from '@/api/server';
 import AnalysisWizard, { type StepConfig } from '@/components/analysis/AnalysisWizard';
 import FileSelector from '@/components/files/FileSelector';
 import ResourceSelector from '@/components/analysis/ResourceSelector';
@@ -249,7 +250,7 @@ export default function AnalysisPage() {
   const [samples, setSamples] = useState<SampleEntry[]>([]);
   const [showBulkInput, setShowBulkInput] = useState(false);
   const [bulkText, setBulkText] = useState('');
-  const [browseTarget, setBrowseTarget] = useState<{ sampleIdx: number; field: 'r1' | 'r2' } | null>(null);
+  const [browseTarget, setBrowseTarget] = useState<{ sampleIdx: number; field: 'r1' | 'r2' | 'both' } | null>(null);
 
   const [groupColors, setGroupColors] = useState<{name: string; color: string}[]>([
     { name: 'Control', color: '#3B82F6' },
@@ -290,8 +291,52 @@ export default function AnalysisPage() {
   /* ----- fetch references & annotations for sequencing types ----- */
   useEffect(() => {
     if (isSequencing(analysisType)) {
-      fetchReferences().then(setReferences);
-      fetchAnnotations().then(setAnnotations);
+      // Fetch installed packages and build reference/annotation lists
+      getPackages().then((res) => {
+        const pkgs = res.data ?? res;
+        if (!Array.isArray(pkgs)) return;
+        const installed = pkgs.filter((p: any) => p.status === 'installed');
+
+        // Build reference list from installed genome/transcriptome packages
+        const refs: Reference[] = installed
+          .filter((p: any) => p.name.includes('genome') || p.name.includes('transcriptome'))
+          .map((p: any, i: number) => ({
+            id: i + 1,
+            name: p.name,
+            species: p.species || (p.name.includes('Human') ? 'Human' : p.name.includes('Mouse') ? 'Mouse' : ''),
+            genome_build: p.build || '',
+            source: 'GENCODE',
+            path: p.name,
+            installed: true,
+            created_at: '',
+            // Track what tools this package is indexed for
+            indexed_for: p.name.includes('transcriptome') ? ['salmon']
+              : ['star', 'hisat2', 'bwa'],
+          }));
+        setReferences(refs as any);
+
+        // Build annotation list from installed annotation packages
+        const anns: Annotation[] = installed
+          .filter((p: any) => p.name.includes('small') || p.name.includes('circRNA') || p.name.includes('ncRNA'))
+          .map((p: any, i: number) => ({
+            id: i + 1,
+            name: p.name,
+            type: p.name.includes('small') || p.name.includes('ncRNA') ? 'small_ncRNA' : 'circRNA',
+            species: p.species || (p.name.includes('Human') ? 'Human' : 'Mouse'),
+            reference_id: 0,
+            path: p.name,
+            created_at: '',
+          }));
+        setAnnotations(anns);
+      });
+
+      // Also fetch any DB-registered references/annotations
+      fetchReferences().then((r) => {
+        if (r.length > 0) setReferences((prev) => [...prev, ...r]);
+      }).catch(() => {});
+      fetchAnnotations().then((a) => {
+        if (a.length > 0) setAnnotations((prev) => [...prev, ...a]);
+      }).catch(() => {});
     }
   }, [analysisType]);
 
@@ -353,14 +398,40 @@ export default function AnalysisPage() {
     setSamples((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
 
   const handleBrowseSelect = (files: FileEntry[]) => {
-    if (browseTarget && files.length > 0) {
+    if (!browseTarget || files.length === 0) {
+      setBrowseTarget(null);
+      return;
+    }
+    const { sampleIdx, field } = browseTarget;
+
+    if (field === 'both') {
+      // Sort selected files into R1 and R2 by filename
+      let r1 = '';
+      let r2 = '';
+      for (const f of files) {
+        const name = f.name.toLowerCase();
+        if (/_r1[_.]|\.r1\.|_1\.f/.test(name)) r1 = f.path;
+        else if (/_r2[_.]|\.r2\.|_2\.f/.test(name)) r2 = f.path;
+        else if (!r1) r1 = f.path;
+        else if (!r2) r2 = f.path;
+      }
+      setSamples((prev) =>
+        prev.map((s, i) => {
+          if (i !== sampleIdx) return s;
+          return {
+            ...s,
+            r1Path: r1 || s.r1Path,
+            r2Path: r2 || s.r2Path,
+            name: s.name || inferSampleName(r1 || r2),
+          };
+        }),
+      );
+    } else {
       const file = files[0];
-      const { sampleIdx, field } = browseTarget;
       setSamples((prev) =>
         prev.map((s, i) => {
           if (i !== sampleIdx) return s;
           const updated = { ...s, [field === 'r1' ? 'r1Path' : 'r2Path']: file.path };
-          // Auto-infer name if currently empty
           if (!s.name && field === 'r1') {
             updated.name = inferSampleName(file.path);
           }
@@ -640,14 +711,26 @@ export default function AnalysisPage() {
                       </TableCell>
                     )}
                     <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)' }}>
-                      <IconButton
-                        size="small"
-                        onClick={() => removeSample(idx)}
-                        sx={{ color: 'error.main' }}
-                        title="Remove sample"
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      <Stack direction="row" spacing={0} alignItems="center">
+                        {seqParams.inputType === 'paired' && (
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => setBrowseTarget({ sampleIdx: idx, field: 'both' })}
+                            sx={{ minWidth: 'auto', fontSize: '0.7rem', color: 'primary.main' }}
+                          >
+                            Select Both
+                          </Button>
+                        )}
+                        <IconButton
+                          size="small"
+                          onClick={() => removeSample(idx)}
+                          sx={{ color: 'error.main' }}
+                          title="Remove sample"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -735,7 +818,7 @@ export default function AnalysisPage() {
           PaperProps={{ sx: { background: 'rgba(17, 24, 39, 0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0, 229, 255, 0.15)' } }}
         >
           <DialogTitle sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.1)' }}>
-            Select {browseTarget?.field === 'r2' ? 'R2' : 'R1'} File
+            {browseTarget?.field === 'both' ? 'Select R1 & R2 Files' : `Select ${browseTarget?.field === 'r2' ? 'R2' : 'R1'} File`}
             {browseTarget !== null && samples[browseTarget.sampleIdx]?.name && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                 for sample: {samples[browseTarget.sampleIdx].name}
@@ -746,8 +829,9 @@ export default function AnalysisPage() {
             <FileSelector
               value={[]}
               onChange={(files) => handleBrowseSelect(files)}
-              multiple={false}
+              multiple={browseTarget?.field === 'both'}
               filters={config.fileExtensions}
+              initialPath="/data/GSFintake"
             />
           </DialogContent>
           <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.1)' }}>
@@ -796,11 +880,19 @@ export default function AnalysisPage() {
                 <MenuItem value="">
                   <em>None</em>
                 </MenuItem>
-                {references.map((ref) => (
-                  <MenuItem key={ref.id} value={ref.id}>
-                    {ref.name} ({ref.species} - {ref.genome_build})
-                  </MenuItem>
-                ))}
+                {references
+                  .filter((ref: any) => {
+                    const algo = (ALGO_MAP[seqParams.algorithm] || seqParams.algorithm || '').toLowerCase();
+                    const indexedFor = (ref as any).indexed_for;
+                    if (!indexedFor) return true; // DB references don't have this field
+                    if (algo === 'salmon') return indexedFor.includes('salmon');
+                    return indexedFor.includes(algo) || indexedFor.includes('star') || indexedFor.includes('hisat2') || indexedFor.includes('bwa');
+                  })
+                  .map((ref) => (
+                    <MenuItem key={ref.id} value={ref.id}>
+                      {ref.name} ({ref.species}{ref.genome_build ? ` - ${ref.genome_build}` : ''})
+                    </MenuItem>
+                  ))}
               </Select>
             </FormControl>
           </Grid>

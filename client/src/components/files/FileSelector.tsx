@@ -27,9 +27,10 @@ interface FileSelectorProps {
   onChange: (files: FileEntry[]) => void;
   multiple: boolean;
   filters?: string[];
+  initialPath?: string;
 }
 
-export default function FileSelector({ value, onChange, multiple, filters }: FileSelectorProps) {
+export default function FileSelector({ value, onChange, multiple, filters, initialPath }: FileSelectorProps) {
   const [open, setOpen] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<FileEntry[]>(value);
 
@@ -114,6 +115,7 @@ export default function FileSelector({ value, onChange, multiple, filters }: Fil
             onSelect={setPendingSelection}
             multiple={multiple}
             allowedExtensions={filters}
+            initialPath={initialPath}
           />
         </DialogContent>
         <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.08)', px: 3, py: 2 }}>

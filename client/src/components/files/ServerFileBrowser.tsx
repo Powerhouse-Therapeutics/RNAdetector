@@ -43,12 +43,14 @@ interface ServerFileBrowserProps {
   onSelect: (files: FileEntry[]) => void;
   multiple: boolean;
   allowedExtensions?: string[];
+  initialPath?: string;
 }
 
 export default function ServerFileBrowser({
   onSelect,
   multiple,
   allowedExtensions,
+  initialPath,
 }: ServerFileBrowserProps) {
   const [volumes, setVolumes] = useState<Volume[]>([]);
   const [selectedVolume, setSelectedVolume] = useState<string>('');
@@ -62,11 +64,19 @@ export default function ServerFileBrowser({
   useEffect(() => {
     listVolumes().then((vols: Volume[]) => {
       setVolumes(vols);
-      if (vols.length > 0) {
-        setSelectedVolume(vols[0].path);
-        setCurrentPath(vols[0].path);
+      if (initialPath) {
+        // Find the volume that contains this path
+        const match = vols.find((v) => initialPath.startsWith(v.path));
+        setSelectedVolume(match?.path ?? vols[0]?.path ?? '');
+        setCurrentPath(initialPath);
+      } else if (vols.length > 0) {
+        // Default to last volume (typically the data volume)
+        const defaultVol = vols[vols.length - 1];
+        setSelectedVolume(defaultVol.path);
+        setCurrentPath(defaultVol.path);
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const browse = useCallback(async (path: string) => {
