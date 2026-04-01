@@ -1,0 +1,5 @@
+sample_id	sample_name	condition	replicate	fastq_file
+S1	Sample_1	control	1	/data/fastq/sample1.fastq.gz
+S2	Sample_2	control	2	/data/fastq/sample2.fastq.gz
+S3	Sample_3	treated	1	/data/fastq/sample3.fastq.gz
+S4	Sample_4	treated	2	/data/fastq/sample4.fastq.gz

@@ -34,6 +34,34 @@
       "description": "Human hg38 transcriptome indexed for Salmon (generated from mRNAs and lncRNAs annotations of gencode v. 32).",
       "url": "https://rnadetector.atlas.dmi.unict.it/repo/packages/h/Human_hg38_gencode_32_transcriptome.tar.bz2",
       "md5": "https://rnadetector.atlas.dmi.unict.it/repo/packages/h/Human_hg38_gencode_32_transcriptome.tar.bz2.md5"
+    },
+    {
+      "name": "Mouse_mm10_genome",
+      "title": "Mouse mm10 genome",
+      "description": "Mouse genome mm10 (GRCm38) indexed for BWA, Tophat, and HISAT. Includes gene annotations from GENCODE vM23.",
+      "url": "https://rnadetector.atlas.dmi.unict.it/repo/packages/m/Mouse_mm10_genome.tar.bz2",
+      "md5": "https://rnadetector.atlas.dmi.unict.it/repo/packages/m/Mouse_mm10_genome.tar.bz2.md5"
+    },
+    {
+      "name": "Mouse_mm10_transcriptome",
+      "title": "Mouse mm10 transcriptome",
+      "description": "Mouse mm10 transcriptome indexed for Salmon (generated from mRNAs and lncRNAs annotations of GENCODE vM23).",
+      "url": "https://rnadetector.atlas.dmi.unict.it/repo/packages/m/Mouse_mm10_transcriptome.tar.bz2",
+      "md5": "https://rnadetector.atlas.dmi.unict.it/repo/packages/m/Mouse_mm10_transcriptome.tar.bz2.md5"
+    },
+    {
+      "name": "Mouse_mm39_genome",
+      "title": "Mouse mm39 genome",
+      "description": "Mouse genome mm39 (GRCm39) indexed for BWA, Tophat, and HISAT. Includes gene annotations from GENCODE vM32.",
+      "url": "https://rnadetector.atlas.dmi.unict.it/repo/packages/m/Mouse_mm39_genome.tar.bz2",
+      "md5": "https://rnadetector.atlas.dmi.unict.it/repo/packages/m/Mouse_mm39_genome.tar.bz2.md5"
+    },
+    {
+      "name": "Mouse_mm39_transcriptome",
+      "title": "Mouse mm39 transcriptome",
+      "description": "Mouse mm39 transcriptome indexed for Salmon (generated from mRNAs and lncRNAs annotations of GENCODE vM32).",
+      "url": "https://rnadetector.atlas.dmi.unict.it/repo/packages/m/Mouse_mm39_transcriptome.tar.bz2",
+      "md5": "https://rnadetector.atlas.dmi.unict.it/repo/packages/m/Mouse_mm39_transcriptome.tar.bz2.md5"
     }
   ]
 }

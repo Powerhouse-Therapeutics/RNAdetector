@@ -1,0 +1,3 @@
+group_name	description	sample_ids
+control_group	Control samples	S1,S2
+treated_group	Treated samples	S3,S4

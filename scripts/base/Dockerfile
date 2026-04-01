@@ -9,6 +9,7 @@ ENV BOOT2DOCKER_GID 50
 ENV SUPERVISOR_VERSION 4.2.0
 
 ENV DEBUG false
+ENV AUTO_INSTALL_PACKAGES=""
 
 # Tweaks to give Apache/PHP write permissions to the app
 RUN usermod -u ${BOOT2DOCKER_ID} www-data && \
@@ -173,5 +174,6 @@ RUN ln -s /usr/local/bin/bootstrap.sh /
 
 EXPOSE 80
 VOLUME [ "/rnadetector/ws/storage/app/" ]
+VOLUME [ "/data" ]
 
 CMD ["/bootstrap.sh"]

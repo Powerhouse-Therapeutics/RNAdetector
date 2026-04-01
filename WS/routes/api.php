@@ -20,6 +20,10 @@ use Illuminate\Http\Request;
 
 Route::get('/ping', 'Api\\PingController@ping');
 
+// Public JWT auth routes
+Route::post('/auth/login', 'Api\\AuthController@login');
+Route::post('/auth/refresh', 'Api\\AuthController@refresh');
+
 Route::group(
     [
         'middleware' => 'auth:api',
@@ -53,6 +57,10 @@ Route::group(
         Route::get('/job-types', 'Api\\JobTypeController@index')->name('job-types.index');
         Route::get('/job-types/{type}', 'Api\\JobTypeController@show')->name('job-types.show');
 
+        // JWT authenticated auth routes
+        Route::post('/auth/logout', 'Api\\AuthController@logout');
+        Route::get('/auth/me', 'Api\\AuthController@me');
+
         Route::apiResource('annotations', 'Api\\AnnotationController')->names(
             [
                 'show' => 'annotation.show',
@@ -66,6 +74,9 @@ Route::group(
                 'show' => 'reference.show',
             ]
         )->except(['create', 'store', 'update']);
+
+        Route::get('/templates', 'Api\\TemplateController@index');
+        Route::get('/templates/{name}/download', 'Api\\TemplateController@download');
     }
 );
 
