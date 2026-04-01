@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, Chip, IconButton, Tooltip, Select, MenuItem, FormControl, InputLabel,
@@ -234,6 +235,7 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
 /* ------------------------------------------------------------------ */
 
 export default function JobsPage() {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -491,8 +493,12 @@ export default function JobsPage() {
                         </Typography>
                       </TableCell>
                       <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                        <Tooltip title="View">
-                          <IconButton size="small" sx={{ color: 'primary.main' }}>
+                        <Tooltip title="View Report">
+                          <IconButton
+                            size="small"
+                            onClick={() => navigate(`/jobs/${job.id}/report`)}
+                            sx={{ color: 'primary.main' }}
+                          >
                             <Visibility fontSize="small" />
                           </IconButton>
                         </Tooltip>

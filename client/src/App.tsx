@@ -12,6 +12,7 @@ import TemplatesPage from '@/pages/TemplatesPage';
 import ServerAdminPage from '@/pages/ServerAdminPage';
 import SettingsPage from '@/pages/SettingsPage';
 import DocsPage from '@/pages/DocsPage';
+import ReportViewerPage from '@/pages/ReportViewerPage';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/annotations" element={<AnnotationsPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/admin" element={<ServerAdminPage />} />
+          <Route path="/jobs/:jobId/report" element={<ReportViewerPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/documentation" element={<DocsPage />} />
         </Route>

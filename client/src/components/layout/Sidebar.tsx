@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
       { label: 'Sample Groups', path: '/analysis/sample-group', icon: <Groups /> },
       { label: 'DEGs Analysis', path: '/analysis/diff-expr', icon: <CompareArrows /> },
       { label: 'Pathway Analysis', path: '/analysis/pathway', icon: <AccountTree /> },
+      { label: 'Full Pipeline', path: '/analysis/full-pipeline', icon: <Biotech /> },
     ],
   },
   {

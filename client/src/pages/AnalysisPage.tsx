@@ -31,6 +31,7 @@ import { fetchAnnotations } from '@/api/annotations';
 import AnalysisWizard, { type StepConfig } from '@/components/analysis/AnalysisWizard';
 import FileSelector from '@/components/files/FileSelector';
 import ResourceSelector from '@/components/analysis/ResourceSelector';
+import { ColorGroupEditor } from '@/components/ui/ColorPicker';
 
 /* ---------- sequencing analysis params ---------- */
 interface SeqParams {
@@ -96,6 +97,7 @@ const typeMap: Record<string, string> = {
   sample_group: 'samples_group_job_type',
   diff_expr: 'diff_expr_analysis_job_type',
   pathway: 'pathway_analysis_job_type',
+  full_pipeline: 'long_rna_job_type',
 };
 
 const ANALYSIS_CONFIG: Record<
@@ -147,9 +149,16 @@ const ANALYSIS_CONFIG: Record<
     description:
       'Identify enriched biological pathways using MITHrIL. Requires a completed DEGs analysis job.',
   },
+  full_pipeline: {
+    title: 'Full Pipeline',
+    algorithms: ['STAR', 'HISAT2', 'Salmon'],
+    fileExtensions: ['.fastq', '.fq', '.fastq.gz', '.fq.gz'],
+    description: 'Complete RNA-seq pipeline: alignment, quantification, differential expression, pathway analysis, and comprehensive HTML report with all figures.',
+    needsGenome: true,
+  },
 };
 
-const isSequencing = (t: string) => ['long_rna', 'small_rna', 'circ_rna'].includes(t);
+const isSequencing = (t: string) => ['long_rna', 'small_rna', 'circ_rna', 'full_pipeline'].includes(t);
 
 const paperSx = {
   p: 2,
@@ -181,6 +190,10 @@ export default function AnalysisPage() {
     threads: 4,
     memoryGB: 8,
   });
+  const [groupColors, setGroupColors] = useState<{name: string; color: string}[]>([
+    { name: 'Control', color: '#3B82F6' },
+    { name: 'Treatment', color: '#EF4444' },
+  ]);
   const [references, setReferences] = useState<Reference[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
 
@@ -326,6 +339,8 @@ export default function AnalysisPage() {
         if (ann) backendParams.annotation = ann.name;
         if (algoBackend === 'salmon' && ref) backendParams.transcriptome = ref.name;
         if (algoBackend !== 'salmon') backendParams.countingAlgorithm = 'feature-counts';
+        backendParams.generate_report = true;
+        backendParams.group_colors = groupColors;
       } else if (analysisType === 'sample_group') {
         backendParams = { jobs: sgParams.selectedJobIds };
       } else if (analysisType === 'diff_expr') {
@@ -342,6 +357,8 @@ export default function AnalysisPage() {
             when_apply_filter: 'prenorm',
           },
         };
+        backendParams.generate_report = true;
+        backendParams.group_colors = groupColors;
       } else if (analysisType === 'pathway') {
         backendParams = {
           degs_analysis: pwParams.degsAnalysis || undefined,
@@ -1046,20 +1063,35 @@ export default function AnalysisPage() {
   };
 
   /* ============================================================
+   *  COLORS STEP (sequencing, diff_expr, full_pipeline)
+   * ============================================================ */
+  const colorsStep: StepConfig = {
+    label: 'Colors',
+    content: (
+      <Stack spacing={3}>
+        <Typography variant="body2" color="text.secondary">
+          Configure colors for sample groups and figure outputs. These colors will be used in all generated plots and the HTML report.
+        </Typography>
+        <ColorGroupEditor groups={groupColors} onChange={setGroupColors} />
+      </Stack>
+    ),
+  };
+
+  /* ============================================================
    *  BUILD DYNAMIC STEPS
    * ============================================================ */
   const steps: StepConfig[] = useMemo(() => {
     if (isSequencing(analysisType)) {
-      // Setup -> Input Files -> Parameters -> Review
-      return [setupStep, inputFilesStep, seqParametersStep, reviewStep];
+      // Setup -> Input Files -> Parameters -> Colors -> Review
+      return [setupStep, inputFilesStep, seqParametersStep, colorsStep, reviewStep];
     }
     if (analysisType === 'sample_group') {
       // Setup -> Select Jobs -> Review
       return [setupStep, selectJobsStep, reviewStep];
     }
     if (analysisType === 'diff_expr') {
-      // Setup -> Select Sample Group -> Statistical Parameters -> Review
-      return [setupStep, selectSampleGroupStep, degsParametersStep, reviewStep];
+      // Setup -> Select Sample Group -> Statistical Parameters -> Colors -> Review
+      return [setupStep, selectSampleGroupStep, degsParametersStep, colorsStep, reviewStep];
     }
     if (analysisType === 'pathway') {
       // Setup -> Select DEGs Analysis -> Parameters -> Review
@@ -1068,7 +1100,7 @@ export default function AnalysisPage() {
     // fallback
     return [setupStep, reviewStep];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisType, jobName, seqParams, sgParams, degsParams, pwParams, references, annotations, allJobs, loadingJobs, submitError, config]);
+  }, [analysisType, jobName, seqParams, sgParams, degsParams, pwParams, groupColors, references, annotations, allJobs, loadingJobs, submitError, config]);
 
   return (
     <Box>
