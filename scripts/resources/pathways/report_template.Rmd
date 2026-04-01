@@ -173,6 +173,126 @@ if (no.pathway.found) {
 ```
 `r paste(knitr::knit(text = out), collapse = '\n')`
 
+# Gene Ontology Enrichment {-}
+
+```{r go-setup, echo=FALSE, message=FALSE}
+# Check if GO enrichment results are available
+has.go.results <- exists("go.results") && !is.null(go.results) &&
+                  length(Filter(Negate(is.null), go.results)) > 0
+```
+
+```{r go-results, echo=FALSE, eval=has.go.results, results='asis', fig.width=10, fig.height=8}
+for (con in names(go.results)) {
+  if (is.null(go.results[[con]])) next
+
+  cat("\n## ", contrasts.to.text(con), " {-}\n\n")
+
+  # Biological Process
+  if (!is.null(go.results[[con]]$BP) && nrow(as.data.frame(go.results[[con]]$BP)) > 0) {
+    cat("\n### Biological Process {-}\n\n")
+    cat("Top enriched GO Biological Process terms:\n\n")
+    print(dotplot(go.results[[con]]$BP, showCategory = 20, title = "GO Biological Process") +
+          theme_minimal(base_size = 10))
+    cat("\n\n")
+    print(knitr::kable(head(as.data.frame(go.results[[con]]$BP)[, c("ID", "Description", "GeneRatio", "pvalue", "p.adjust", "Count")], 20)))
+  }
+
+  # Molecular Function
+  if (!is.null(go.results[[con]]$MF) && nrow(as.data.frame(go.results[[con]]$MF)) > 0) {
+    cat("\n### Molecular Function {-}\n\n")
+    print(dotplot(go.results[[con]]$MF, showCategory = 15, title = "GO Molecular Function") +
+          theme_minimal(base_size = 10))
+  }
+
+  # Cellular Component
+  if (!is.null(go.results[[con]]$CC) && nrow(as.data.frame(go.results[[con]]$CC)) > 0) {
+    cat("\n### Cellular Component {-}\n\n")
+    print(dotplot(go.results[[con]]$CC, showCategory = 15, title = "GO Cellular Component") +
+          theme_minimal(base_size = 10))
+  }
+}
+```
+
+```{r go-none, echo=FALSE, eval=!has.go.results, results='asis'}
+cat("GO term enrichment analysis was not performed or produced no significant results.\n\n")
+```
+
+# Gene Set Enrichment Analysis (GSEA) {-}
+
+```{r gsea-setup, echo=FALSE, message=FALSE}
+has.gsea.results <- exists("gsea.results") && !is.null(gsea.results) &&
+                    length(Filter(Negate(is.null), gsea.results)) > 0
+```
+
+```{r gsea-results, echo=FALSE, eval=has.gsea.results, results='asis', fig.width=10, fig.height=8}
+for (con in names(gsea.results)) {
+  if (is.null(gsea.results[[con]])) next
+
+  cat("\n## ", contrasts.to.text(con), " {-}\n\n")
+
+  # GSEA KEGG
+  if (!is.null(gsea.results[[con]]$kegg) && nrow(as.data.frame(gsea.results[[con]]$kegg)) > 0) {
+    cat("\n### GSEA - KEGG Pathways {-}\n\n")
+
+    # Enrichment plot for top pathways
+    gsea.df <- as.data.frame(gsea.results[[con]]$kegg)
+    cat("Found", nrow(gsea.df), "significantly enriched KEGG pathways by GSEA.\n\n")
+
+    # Ridge plot
+    print(ridgeplot(gsea.results[[con]]$kegg, showCategory = 15) +
+          labs(title = "GSEA KEGG Pathway Ridge Plot") +
+          theme_minimal(base_size = 10))
+    cat("\n\n")
+
+    # Dot plot
+    print(dotplot(gsea.results[[con]]$kegg, showCategory = 20, title = "GSEA KEGG Enrichment") +
+          theme_minimal(base_size = 10))
+    cat("\n\n")
+
+    # Individual enrichment plots for top 5 pathways
+    top.pathways <- head(gsea.df[order(gsea.df$p.adjust), ], 5)
+    for (i in seq_len(nrow(top.pathways))) {
+      cat("\n#### ", top.pathways$Description[i], " {-}\n\n")
+      print(gseaplot2(gsea.results[[con]]$kegg, geneSetID = i,
+                       title = top.pathways$Description[i]))
+      cat("\n\n")
+    }
+
+    # Results table
+    print(knitr::kable(head(gsea.df[, c("ID", "Description", "setSize", "enrichmentScore", "NES", "pvalue", "p.adjust")], 20),
+                       caption = "Top GSEA KEGG pathway results"))
+  }
+
+  # GSEA GO
+  if (!is.null(gsea.results[[con]]$go) && nrow(as.data.frame(gsea.results[[con]]$go)) > 0) {
+    cat("\n### GSEA - GO Biological Process {-}\n\n")
+
+    gsea.go.df <- as.data.frame(gsea.results[[con]]$go)
+    cat("Found", nrow(gsea.go.df), "significantly enriched GO BP terms by GSEA.\n\n")
+
+    print(dotplot(gsea.results[[con]]$go, showCategory = 20, title = "GSEA GO BP Enrichment") +
+          theme_minimal(base_size = 10))
+    cat("\n\n")
+
+    # Enrichment map if enough results
+    if (nrow(gsea.go.df) >= 5) {
+      tryCatch({
+        gsea.go.pairwise <- pairwise_termsim(gsea.results[[con]]$go)
+        print(emapplot(gsea.go.pairwise, showCategory = 30) +
+              labs(title = "GO Term Enrichment Map"))
+        cat("\n\n")
+      }, error = function(e) {
+        cat("Enrichment map could not be generated.\n\n")
+      })
+    }
+  }
+}
+```
+
+```{r gsea-none, echo=FALSE, eval=!has.gsea.results, results='asis'}
+cat("GSEA was not performed or produced no significant results.\n\n")
+```
+
 ## References
 
 - Alaimo, S., Giugno, R., Acunzo, M., Veneziano, D., Ferro, A. and Pulvirenti, A.: Post-transcriptional knowledge in pathway analysis increases the accuracy of phenotypes classification. Oncotarget 7: 34 (2016).
