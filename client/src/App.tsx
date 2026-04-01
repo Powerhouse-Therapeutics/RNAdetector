@@ -11,11 +11,13 @@ import AnnotationsPage from '@/pages/AnnotationsPage';
 import TemplatesPage from '@/pages/TemplatesPage';
 import ServerAdminPage from '@/pages/ServerAdminPage';
 import SettingsPage from '@/pages/SettingsPage';
+import DocsPage from '@/pages/DocsPage';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/docs" element={<DocsPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
@@ -27,6 +29,7 @@ export default function App() {
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/admin" element={<ServerAdminPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/documentation" element={<DocsPage />} />
         </Route>
       </Route>
     </Routes>

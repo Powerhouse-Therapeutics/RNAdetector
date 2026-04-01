@@ -8,6 +8,7 @@ import {
   Home, ExpandLess, ExpandMore, Science, BubbleChart, AcUnit,
   Groups, CompareArrows, AccountTree, Work, Folder, Storage,
   Description, ViewModule, AdminPanelSettings, Settings, Biotech,
+  MenuBook,
 } from '@mui/icons-material';
 import useAuthStore from '@/stores/authStore';
 
@@ -47,6 +48,7 @@ const navItems: NavItem[] = [
   },
   { label: 'Jobs', icon: <Work />, path: '/jobs' },
   { label: 'Admin', icon: <AdminPanelSettings />, path: '/admin', adminOnly: true },
+  { label: 'Documentation', icon: <MenuBook />, path: '/documentation' },
   { label: 'Settings', icon: <Settings />, path: '/settings' },
 ];
 

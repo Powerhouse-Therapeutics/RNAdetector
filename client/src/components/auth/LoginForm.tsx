@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import {
   TextField, Button, Alert, CircularProgress, Paper, Typography,
+  FormControlLabel, Checkbox, Stack, Link,
 } from '@mui/material';
-import { Login as LoginIcon } from '@mui/icons-material';
+import { Login as LoginIcon, MenuBook as DocsIcon } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth';
 
 export default function LoginForm() {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -17,9 +21,10 @@ export default function LoginForm() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
     } catch (err: unknown) {
       const message =
+        (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.error ||
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
         'Login failed. Please check your credentials.';
       setError(message);
@@ -70,8 +75,27 @@ export default function LoginForm() {
         required
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        sx={{ mb: 3 }}
+        sx={{ mb: 2 }}
         autoComplete="current-password"
+      />
+
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            sx={{
+              color: 'rgba(0, 229, 255, 0.4)',
+              '&.Mui-checked': { color: '#00E5FF' },
+            }}
+          />
+        }
+        label={
+          <Typography variant="body2" color="text.secondary">
+            Remember me
+          </Typography>
+        }
+        sx={{ mb: 2 }}
       />
 
       <Button
@@ -81,9 +105,30 @@ export default function LoginForm() {
         size="large"
         disabled={loading}
         startIcon={loading ? <CircularProgress size={20} /> : <LoginIcon />}
+        sx={{ mb: 2 }}
       >
         {loading ? 'Signing in...' : 'Sign In'}
       </Button>
+
+      <Stack direction="row" justifyContent="center">
+        <Link
+          component="button"
+          type="button"
+          variant="body2"
+          underline="hover"
+          onClick={() => navigate('/docs')}
+          sx={{
+            color: 'text.secondary',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            '&:hover': { color: 'primary.main' },
+          }}
+        >
+          <DocsIcon fontSize="small" />
+          Documentation
+        </Link>
+      </Stack>
     </Paper>
   );
 }
