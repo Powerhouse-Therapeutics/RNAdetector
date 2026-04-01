@@ -26,7 +26,8 @@ $new = <<<'PHP'
         }
 
         // Support absolute paths (files on mounted server volumes)
-        if (str_starts_with($file, '/') && file_exists($file)) {
+        // Use substr() instead of str_starts_with() for PHP 7.4 compatibility
+        if (substr($file, 0, 1) === '/' && file_exists($file)) {
             return true;
         }
 
