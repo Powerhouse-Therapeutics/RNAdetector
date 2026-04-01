@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Chip, Button, Skeleton, Stack, Divider,
+  Paper, Chip, Button, Skeleton, Divider,
 } from '@mui/material';
 import { CheckCircle, CloudDownload } from '@mui/icons-material';
 import { fetchReferences, fetchPackages } from '@/api/references';

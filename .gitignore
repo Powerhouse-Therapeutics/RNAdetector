@@ -20,3 +20,6 @@ scripts/base/repo.tar.gz
 scripts/base/Human_hg19_small_ncRNAs.gtf
 scripts/base/Human_hg19_genome.fasta
 scripts/base/Human_hg19_circRNAs.gtf
+client/dist/
+client/node_modules/
+storage/

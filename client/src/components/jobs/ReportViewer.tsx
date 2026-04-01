@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
   Box, Paper, IconButton, Toolbar, Typography, Tooltip, Stack
 } from '@mui/material';

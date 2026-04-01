@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from 'react';
 import {
   Box, Typography, Slider, Paper, Grid, Chip, Tooltip, Alert, Stack
 } from '@mui/material';

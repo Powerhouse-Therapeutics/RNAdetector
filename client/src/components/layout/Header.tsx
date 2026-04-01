@@ -1,4 +1,3 @@
-import React from 'react';
 import { AppBar, Toolbar, Typography, Box, Chip, IconButton, Tooltip } from '@mui/material';
 import { Logout, Biotech } from '@mui/icons-material';
 import useAuth from '@/hooks/useAuth';

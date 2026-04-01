@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, CardActionArea, Grid, Chip, Stack,
@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   Biotech, AcUnit, BubbleChart, CompareArrows, AccountTree, Groups,
-  Memory, Speed, Storage, CheckCircle, Schedule, Error as ErrorIcon,
+  Speed, Storage, CheckCircle, Schedule,
 } from '@mui/icons-material';
 import type { Job, ServerStatus, Reference } from '@/types';
 import client from '@/api/client';

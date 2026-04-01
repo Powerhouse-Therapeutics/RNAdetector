@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Box, TextField, Button, Alert, CircularProgress, Paper, Typography,
+  TextField, Button, Alert, CircularProgress, Paper, Typography,
 } from '@mui/material';
 import { Login as LoginIcon } from '@mui/icons-material';
 import useAuth from '@/hooks/useAuth';
