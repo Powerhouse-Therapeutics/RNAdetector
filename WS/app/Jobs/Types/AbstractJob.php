@@ -59,7 +59,12 @@ abstract class AbstractJob
     /**
      * @var int
      */
-    protected $defaultNumberOfThreads = 1;
+    protected $defaultNumberOfThreads = 16;
+
+    /**
+     * @var int
+     */
+    protected $defaultMemoryGB = 32;
 
     /**
      * @var \App\Models\Job
@@ -182,6 +187,26 @@ abstract class AbstractJob
     public function threads(): int
     {
         return (int)$this->getParameter('threads', $this->defaultNumberOfThreads);
+    }
+
+    /**
+     * Returns the memory limit in GB used by this job
+     *
+     * @return int
+     */
+    public function memoryGB(): int
+    {
+        return (int)$this->getParameter('memory_gb', $this->defaultMemoryGB);
+    }
+
+    /**
+     * Returns the memory limit in bytes (80% of allocated GB for safety margin)
+     *
+     * @return int
+     */
+    public function memoryBytes(): int
+    {
+        return (int)($this->memoryGB() * 1073741824 * 0.8);
     }
 
     /**

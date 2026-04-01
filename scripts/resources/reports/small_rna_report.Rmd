@@ -1,0 +1,377 @@
+---
+title: "`r params$title`"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+params:
+  title: "RNAdetector Small RNA-Seq Analysis Report"
+  pipeline_version: "2.0"
+  analysis_type: "small_rna"
+  algorithm: "star"
+  counting_algorithm: "featurecounts"
+  de_algorithm: "deseq2"
+  genome_name: "Human (hg38)"
+  annotation_name: "GENCODE v38"
+  threads: 4
+  memory_gb: 8
+  trim_enabled: true
+  trim_quality: 20
+  trim_length: 18
+  output_dir: "."
+  job_name: "small_rna_analysis"
+  input_files: ""
+  pathway_analysis: false
+  circ_rna_detection: false
+  circ_algorithm: "ciri2"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    theme: darkly
+    highlight: monokai
+    code_folding: show
+    self_contained: true
+    number_sections: true
+bibliography: references.bib
+csl: nature.csl
+---
+
+```{css custom-dark-theme, echo=TRUE}
+/* Custom CSS for dark theme report styling */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.7;
+}
+body p {
+  text-align: justify;
+}
+.table-striped > tbody > tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+pre {
+  border: 1px solid #444;
+}
+```
+
+```{r setup, echo=TRUE}
+# Load required libraries for small RNA-Seq analysis reporting
+suppressPackageStartupMessages({
+  library(knitr)
+  library(ggplot2)
+  library(DT)
+})
+
+# Set global chunk options: all code visible
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6,
+  fig.align = "center"
+)
+
+# Set ggplot2 theme for dark background reports
+theme_dark_report <- theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "#222222", color = NA),
+    panel.background = element_rect(fill = "#2d2d2d", color = NA),
+    text = element_text(color = "#e0e0e0"),
+    axis.text = element_text(color = "#cccccc"),
+    panel.grid.major = element_line(color = "#444444"),
+    panel.grid.minor = element_line(color = "#333333"),
+    legend.background = element_rect(fill = "#222222"),
+    legend.text = element_text(color = "#e0e0e0"),
+    plot.title = element_text(color = "#ffffff", size = 14, face = "bold"),
+    plot.subtitle = element_text(color = "#bbbbbb")
+  )
+```
+
+# Analysis Overview
+
+```{r analysis-overview, echo=TRUE}
+# Display summary of the small RNA-Seq analysis parameters
+cat("**Job Name:**", params$job_name, "\n\n")
+cat("**Analysis Type:** Small RNA-Seq\n\n")
+cat("**Reference Genome:**", params$genome_name, "\n\n")
+cat("**Annotation:**", params$annotation_name, "\n\n")
+cat("**Alignment Algorithm:**", params$algorithm, "\n\n")
+cat("**Counting Algorithm:**", params$counting_algorithm, "\n\n")
+cat("**DE Algorithm:**", ifelse(is.null(params$de_algorithm), "none", params$de_algorithm), "\n\n")
+cat("**Pipeline Version:**", params$pipeline_version, "\n\n")
+```
+
+# Materials and Methods
+
+```{r materials-methods, child='materials_methods.Rmd', echo=TRUE}
+# Include the shared Materials and Methods child document.
+# This generates publication-ready methods text based on the analysis parameters.
+```
+
+# Read Size Distribution
+
+```{r load-size-distribution, echo=TRUE}
+# Load read length distribution data from the pipeline output
+size_dist_file <- file.path(params$output_dir, "read_length_distribution.tsv")
+size_dist_file_alt <- file.path(params$output_dir, "size_distribution.tsv")
+
+size_data <- NULL
+for (candidate in c(size_dist_file, size_dist_file_alt)) {
+  if (file.exists(candidate)) {
+    size_data <- read.delim(candidate, header = TRUE, stringsAsFactors = FALSE)
+    cat("Read size distribution data loaded.\n")
+    break
+  }
+}
+
+if (is.null(size_data)) {
+  cat("Read size distribution file not found in output directory.\n")
+  cat("Expected location:", size_dist_file, "\n")
+}
+```
+
+```{r size-distribution-plot, echo=TRUE, fig.cap="Read length distribution after trimming. Small RNA species are characterized by distinct size ranges: miRNAs (~21-23 nt), piRNAs (~26-31 nt), and tRFs (~14-36 nt)."}
+# Plot read length distribution with annotations for expected small RNA sizes
+if (!is.null(size_data)) {
+  length_col <- grep("length|size|Length|Size", colnames(size_data), value = TRUE)[1]
+  count_col <- grep("count|reads|Count|Reads|frequency", colnames(size_data), value = TRUE)[1]
+
+  if (!is.na(length_col) && !is.na(count_col)) {
+    plot_df <- data.frame(
+      Length = size_data[[length_col]],
+      Count = size_data[[count_col]]
+    )
+
+    ggplot(plot_df, aes(x = Length, y = Count)) +
+      geom_bar(stat = "identity", fill = "#ce93d8", width = 0.8) +
+      # Annotate expected small RNA size ranges
+      annotate("rect", xmin = 20.5, xmax = 23.5, ymin = -Inf, ymax = Inf,
+               alpha = 0.1, fill = "#4fc3f7") +
+      annotate("text", x = 22, y = max(plot_df$Count) * 0.95,
+               label = "miRNA\n(21-23 nt)", color = "#4fc3f7", size = 3) +
+      annotate("rect", xmin = 25.5, xmax = 31.5, ymin = -Inf, ymax = Inf,
+               alpha = 0.1, fill = "#81c784") +
+      annotate("text", x = 28.5, y = max(plot_df$Count) * 0.85,
+               label = "piRNA\n(26-31 nt)", color = "#81c784", size = 3) +
+      labs(
+        title = "Read Length Distribution",
+        subtitle = "After adapter trimming and quality filtering",
+        x = "Read Length (nt)",
+        y = "Number of Reads"
+      ) +
+      scale_x_continuous(breaks = seq(10, 50, 2)) +
+      theme_dark_report
+  }
+} else {
+  cat("Generating placeholder read size distribution.\n")
+  cat("Small RNA size ranges of interest:\n")
+  cat("- miRNAs: 21-23 nt\n")
+  cat("- piRNAs: 26-31 nt\n")
+  cat("- snoRNAs: 60-300 nt\n")
+  cat("- tRFs (tRNA-derived fragments): 14-36 nt\n")
+}
+```
+
+# Small RNA Quantification
+
+```{r load-counts, echo=TRUE}
+# Load the small RNA count matrix from the pipeline output
+counts_file <- file.path(params$output_dir, "counts_matrix.tsv")
+counts_file_alt <- file.path(params$output_dir, "counts.tsv")
+
+count_data <- NULL
+for (candidate in c(counts_file, counts_file_alt)) {
+  if (file.exists(candidate)) {
+    count_data <- read.delim(candidate, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
+    cat("Count matrix loaded:", nrow(count_data), "features x", ncol(count_data), "samples\n")
+    break
+  }
+}
+
+if (is.null(count_data)) {
+  cat("Count matrix file not found in output directory.\n")
+  cat("Expected location:", counts_file, "\n")
+}
+```
+
+## RNA Biotype Summary
+
+```{r biotype-summary, echo=TRUE, fig.cap="Distribution of small RNA biotypes detected in the analysis. Each biotype represents a distinct class of non-coding RNA."}
+# Summarize detected RNA biotypes if annotation information is available
+biotype_file <- file.path(params$output_dir, "biotype_counts.tsv")
+biotype_file_alt <- file.path(params$output_dir, "biotype_summary.tsv")
+
+biotype_data <- NULL
+for (candidate in c(biotype_file, biotype_file_alt)) {
+  if (file.exists(candidate)) {
+    biotype_data <- read.delim(candidate, header = TRUE, stringsAsFactors = FALSE)
+    break
+  }
+}
+
+if (!is.null(biotype_data)) {
+  biotype_col <- grep("biotype|type|Biotype|Type", colnames(biotype_data), value = TRUE)[1]
+  count_col <- grep("count|reads|Count|Reads|total", colnames(biotype_data), value = TRUE)[1]
+
+  if (!is.na(biotype_col) && !is.na(count_col)) {
+    plot_df <- data.frame(
+      Biotype = biotype_data[[biotype_col]],
+      Count = biotype_data[[count_col]]
+    )
+
+    ggplot(plot_df, aes(x = reorder(Biotype, Count), y = Count)) +
+      geom_bar(stat = "identity", fill = "#ffb74d", width = 0.7) +
+      coord_flip() +
+      labs(
+        title = "Small RNA Biotype Distribution",
+        x = "RNA Biotype",
+        y = "Total Counts"
+      ) +
+      theme_dark_report
+  }
+} else {
+  cat("Biotype summary file not found. Biotype classification requires annotation data.\n")
+  cat("Expected small RNA biotypes include:\n")
+  cat("- miRNA (microRNA)\n")
+  cat("- piRNA (PIWI-interacting RNA)\n")
+  cat("- snoRNA (small nucleolar RNA)\n")
+  cat("- snRNA (small nuclear RNA)\n")
+  cat("- tRF (tRNA-derived fragment)\n")
+  cat("- rRNA (ribosomal RNA)\n")
+}
+```
+
+## miRNA Expression
+
+```{r mirna-expression, echo=TRUE}
+# Extract and display miRNA-specific expression data if available
+mirna_file <- file.path(params$output_dir, "mirna_counts.tsv")
+
+if (file.exists(mirna_file)) {
+  mirna_data <- read.delim(mirna_file, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
+  cat("miRNA count data loaded:", nrow(mirna_data), "miRNAs detected\n\n")
+
+  # Top miRNAs by mean expression
+  mirna_means <- data.frame(
+    miRNA = rownames(mirna_data),
+    Mean_Count = rowMeans(mirna_data),
+    Detected_In = rowSums(mirna_data > 0)
+  )
+  mirna_means <- mirna_means[order(-mirna_means$Mean_Count), ]
+  mirna_means$Mean_Count <- round(mirna_means$Mean_Count, 2)
+
+  datatable(
+    head(mirna_means, 30),
+    caption = "Top 30 Most Abundant miRNAs",
+    options = list(pageLength = 15, dom = "ftip"),
+    rownames = FALSE
+  )
+} else if (!is.null(count_data)) {
+  # Try to identify miRNAs from the general count matrix by name pattern
+  mirna_rows <- grep("^hsa-mir|^hsa-let|^mmu-mir|^MIR", rownames(count_data), ignore.case = TRUE)
+
+  if (length(mirna_rows) > 0) {
+    mirna_subset <- count_data[mirna_rows, , drop = FALSE]
+    cat("Identified", nrow(mirna_subset), "miRNAs from the count matrix.\n\n")
+
+    mirna_means <- data.frame(
+      miRNA = rownames(mirna_subset),
+      Mean_Count = round(rowMeans(mirna_subset), 2),
+      Detected_In = rowSums(mirna_subset > 0)
+    )
+    mirna_means <- mirna_means[order(-mirna_means$Mean_Count), ]
+
+    datatable(
+      head(mirna_means, 30),
+      caption = "Top 30 Most Abundant miRNAs",
+      options = list(pageLength = 15, dom = "ftip"),
+      rownames = FALSE
+    )
+  } else {
+    cat("No miRNA-specific data found. miRNA counts may be included in the general count matrix.\n")
+  }
+}
+```
+
+## Expression Distribution
+
+```{r expression-distribution, echo=TRUE, fig.cap="Distribution of log2(counts + 1) across all samples for detected small RNAs."}
+# Plot expression distribution for small RNA features
+if (!is.null(count_data)) {
+  log_counts <- log2(count_data + 1)
+  plot_data <- data.frame(
+    Expression = unlist(log_counts),
+    Sample = rep(colnames(log_counts), each = nrow(log_counts))
+  )
+
+  ggplot(plot_data, aes(x = Expression, color = Sample)) +
+    geom_density(linewidth = 0.8, alpha = 0.8) +
+    labs(
+      title = "Small RNA Expression Distribution",
+      subtitle = "Log2(counts + 1) per sample",
+      x = "Log2(counts + 1)",
+      y = "Density"
+    ) +
+    theme_dark_report
+}
+```
+
+## Detection Summary
+
+```{r detection-summary, echo=TRUE}
+# Provide a summary of small RNA feature detection across samples
+if (!is.null(count_data)) {
+  total_features <- nrow(count_data)
+  detected_features <- sum(rowSums(count_data) > 0)
+  detected_all <- sum(rowSums(count_data > 0) == ncol(count_data))
+
+  cat("**Total features in annotation:**", total_features, "\n\n")
+  cat("**Features detected (>0 counts in any sample):**", detected_features,
+      sprintf("(%.1f%%)", 100 * detected_features / total_features), "\n\n")
+  cat("**Features detected in all samples:**", detected_all,
+      sprintf("(%.1f%%)", 100 * detected_all / total_features), "\n\n")
+}
+```
+
+# Software Versions
+
+```{r software-versions, echo=TRUE}
+# Compile a table of all software tools and their versions
+software_df <- data.frame(
+  Software = c("RNAdetector", "R", "Bioconductor"),
+  Version = c(
+    params$pipeline_version,
+    paste(R.version$major, R.version$minor, sep = "."),
+    as.character(BiocManager::version())
+  ),
+  Reference = c("Alaimo et al., 2020", "R Core Team, 2023", "Huber et al., 2015"),
+  stringsAsFactors = FALSE
+)
+
+if (params$algorithm == "star") {
+  software_df <- rbind(software_df, data.frame(Software = "STAR", Version = "2.7.9a", Reference = "Dobin et al., 2013"))
+} else if (params$algorithm == "hisat2") {
+  software_df <- rbind(software_df, data.frame(Software = "HISAT2", Version = "2.2.1", Reference = "Kim et al., 2019"))
+}
+
+if (params$counting_algorithm == "featurecounts") {
+  software_df <- rbind(software_df, data.frame(Software = "featureCounts", Version = "2.0.3", Reference = "Liao et al., 2014"))
+} else if (params$counting_algorithm == "htseq") {
+  software_df <- rbind(software_df, data.frame(Software = "HTSeq", Version = "0.13.5", Reference = "Anders et al., 2015"))
+}
+
+if (params$trim_enabled) {
+  software_df <- rbind(software_df, data.frame(Software = "Trim Galore", Version = "0.6.6", Reference = "Krueger, 2015"))
+}
+
+kable(software_df, format = "html", caption = "Software Versions") |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+# Session Information
+
+```{r session-info, echo=TRUE}
+# Print full R session information for complete reproducibility
+sessionInfo()
+```
+
+# References

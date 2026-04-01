@@ -179,6 +179,14 @@ class PathwayAnalysisJobType extends AbstractJob
             ]
         );
         $this->model->save();
+        // Check for enhanced pathway analysis report
+        $enhancedReportPath = $pathReportDirectory . '/pathway_analysis_report.html';
+        $enhancedReportAbsolute = $this->model->absoluteJobPath($enhancedReportPath);
+        if (file_exists($enhancedReportAbsolute)) {
+            $enhancedReportUrl = \Storage::disk('public')->url($enhancedReportPath);
+            $this->setOutput('enhancedReportFile', ['path' => $enhancedReportPath, 'url' => $enhancedReportUrl]);
+            $this->model->save();
+        }
     }
 
     /**

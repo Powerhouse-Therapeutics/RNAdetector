@@ -419,8 +419,8 @@ if (is.null(opt$output)) {
 }
 
 res <- suppressWarnings(build.report(
-  input.directory = opt$input, 
-  output.directory = opt$output, 
+  input.directory = opt$input,
+  output.directory = opt$output,
   degs.p.cut = opt[["degs-p"]],
   degs.lfc.cut = opt[["degs-lfc"]],
   degs.use.fdr = opt[["degs-no-fdr"]],
@@ -428,3 +428,48 @@ res <- suppressWarnings(build.report(
   pathway.p.cut = opt[["path-p"]],
   pathway.use.fdr = opt[["path-no-fdr"]]
 ))
+
+# Generate enhanced pathway analysis report with Materials & Methods
+tryCatch({
+  report_template <- file.path(dirname(opt$output), "../../scripts/resources/reports/analysis_report.Rmd")
+  # Fall back to default template path inside the container
+  if (!file.exists(report_template)) {
+    report_template <- "/rnadetector/scripts/resources/reports/analysis_report.Rmd"
+  }
+  if (file.exists(report_template)) {
+    references_bib <- file.path(dirname(report_template), "references.bib")
+    methods_rmd <- file.path(dirname(report_template), "materials_methods.Rmd")
+
+    # Copy bibliography to output directory
+    if (file.exists(references_bib)) {
+      file.copy(references_bib, file.path(opt$output, "references.bib"), overwrite = TRUE)
+    }
+    if (file.exists(methods_rmd)) {
+      file.copy(methods_rmd, file.path(opt$output, "materials_methods.Rmd"), overwrite = TRUE)
+    }
+
+    rmarkdown::render(
+      input = report_template,
+      output_file = file.path(opt$output, "pathway_analysis_report.html"),
+      output_dir = opt$output,
+      params = list(
+        title = "Pathway Analysis Report",
+        pipeline_version = "2.0",
+        analysis_type = "pathway",
+        degs_p_cutoff = opt[["degs-p"]],
+        degs_lfc_cutoff = opt[["degs-lfc"]],
+        degs_use_fdr = opt[["degs-no-fdr"]],
+        pathway_organism = opt[["path-org"]],
+        pathway_p_cutoff = opt[["path-p"]],
+        pathway_use_fdr = opt[["path-no-fdr"]],
+        input_directory = opt$input,
+        output_dir = opt$output
+      ),
+      envir = new.env(parent = globalenv()),
+      quiet = TRUE
+    )
+    cat("Enhanced pathway analysis report generated successfully.\n")
+  }
+}, error = function(e) {
+  cat(paste0("Warning: Could not generate enhanced report: ", e$message, "\n"))
+})

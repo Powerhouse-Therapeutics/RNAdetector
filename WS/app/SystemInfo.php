@@ -135,21 +135,51 @@ final class SystemInfo
     }
 
     /**
+     * Returns resource recommendations for different analysis types
+     *
+     * @return array
+     */
+    public function resourceRecommendations(): array
+    {
+        $cores = $this->numCores();
+        $memGB = (int)round($this->maxMemory() / 1024 / 1024);
+        return [
+            'server' => [
+                'totalCores' => $cores,
+                'totalMemoryGB' => $memGB,
+                'availableMemoryGB' => (int)round($this->availableMemory() / 1024 / 1024),
+                'usedCores' => $this->usedCores(),
+            ],
+            'defaults' => ['threads' => 16, 'memory_gb' => 32],
+            'recommendations' => [
+                'long_rna'  => ['min_threads' => 4, 'rec_threads' => min(16, $cores), 'min_mem_gb' => 16, 'rec_mem_gb' => min(32, $memGB)],
+                'small_rna' => ['min_threads' => 4, 'rec_threads' => min(16, $cores), 'min_mem_gb' => 8,  'rec_mem_gb' => min(32, $memGB)],
+                'circ_rna'  => ['min_threads' => 4, 'rec_threads' => min(16, $cores), 'min_mem_gb' => 16, 'rec_mem_gb' => min(32, $memGB)],
+                'diff_expr' => ['min_threads' => 2, 'rec_threads' => min(8, $cores),  'min_mem_gb' => 8,  'rec_mem_gb' => min(16, $memGB)],
+                'pathway'   => ['min_threads' => 2, 'rec_threads' => min(4, $cores),  'min_mem_gb' => 4,  'rec_mem_gb' => min(8, $memGB)],
+            ],
+        ];
+    }
+
+    /**
      * Transforms this object in an array
      *
      * @return array
      */
     public function toArray(): array
     {
-        return [
-            'data' => [
-                'containerVersion'       => Utils::VERSION,
-                'containerVersionNumber' => Utils::VERSION_NUMBER,
-                'maxMemory'              => $this->maxMemory(),
-                'availableMemory'        => $this->availableMemory(),
-                'numCores'               => $this->numCores(),
-                'usedCores'              => $this->usedCores(),
+        return array_merge(
+            [
+                'data' => [
+                    'containerVersion'       => Utils::VERSION,
+                    'containerVersionNumber' => Utils::VERSION_NUMBER,
+                    'maxMemory'              => $this->maxMemory(),
+                    'availableMemory'        => $this->availableMemory(),
+                    'numCores'               => $this->numCores(),
+                    'usedCores'              => $this->usedCores(),
+                ],
             ],
-        ];
+            $this->resourceRecommendations()
+        );
     }
 }

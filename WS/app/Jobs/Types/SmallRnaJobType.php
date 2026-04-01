@@ -47,7 +47,6 @@ class SmallRnaJobType extends AbstractJob
                 'genome'                     => 'An optional name for a reference genome (Default human hg19)',
                 'transcriptome'              => 'An optional name for a transcriptome if counting algorithm is salmon (Default human hg19)',
                 'annotation'                 => 'An optional name for a GTF genome annotation (Default human hg19)',
-                'threads'                    => 'Number of threads for this analysis (Default 1)',
                 'alignment_custom_arguments' => 'An optional string containing custom arguments for the alignment software',
                 'counting_custom_arguments'  => 'An optional string containing custom arguments for the counting software',
             ]
@@ -85,7 +84,6 @@ class SmallRnaJobType extends AbstractJob
                 'genome'                     => ['filled', 'alpha_dash', Rule::exists('references', 'name')],
                 'annotation'                 => ['filled', 'alpha_dash', Rule::exists('annotations', 'name')],
                 'transcriptome'              => ['filled', 'alpha_dash', Rule::exists('references', 'name')],
-                'threads'                    => ['filled', 'integer'],
                 'alignment_custom_arguments' => ['filled', 'string'],
                 'counting_custom_arguments'  => ['filled', 'string'],
             ]

@@ -47,7 +47,6 @@ class LongRnaJobType extends AbstractJob
                 'genome'                     => 'An optional genome for star or hisat2 (Default: human hg19)',
                 'annotation'                 => 'An optional annotation file for counting (Default: human hg19 mRNAs and lncRNAs)',
                 'transcriptome'              => 'An optional transcriptome for quantification with salmon (Default: human hg19 mRNAs and lncRNAs)',
-                'threads'                    => 'Number of threads for this analysis (Default 1)',
                 'alignment_custom_arguments' => 'An optional string containing custom arguments for the alignment software',
                 'counting_custom_arguments'  => 'An optional string containing custom arguments for the counting software',
             ]
@@ -92,7 +91,6 @@ class LongRnaJobType extends AbstractJob
                 'genome'                     => ['filled', 'alpha_dash', Rule::exists('references', 'name')],
                 'annotation'                 => ['filled', 'alpha_dash', Rule::exists('annotations', 'name')],
                 'transcriptome'              => ['filled', 'alpha_dash', Rule::exists('references', 'name')],
-                'threads'                    => ['filled', 'integer'],
                 'alignment_custom_arguments' => ['filled', 'string'],
                 'counting_custom_arguments'  => ['filled', 'string'],
             ]

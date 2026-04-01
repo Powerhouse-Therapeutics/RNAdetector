@@ -55,6 +55,7 @@ trait UseAlignmentTrait
         }
         $model->appendLog('Aligning reads using STAR.');
         $bamOutput = $model->getJobFileAbsolute('star_output_', '.bam');
+        $memoryBytes = $this->memoryBytes();
         $command = [
             'bash',
             AbstractJob::scriptPath('star.sh'),
@@ -68,6 +69,8 @@ trait UseAlignmentTrait
             $firstInputFile,
             '-o',
             $bamOutput,
+            '-m',
+            $memoryBytes,
         ];
         if ($paired) {
             $command[] = '-s';
