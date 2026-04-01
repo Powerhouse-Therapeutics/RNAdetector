@@ -44,7 +44,6 @@ import type { FileEntry, JobType, Reference, Annotation, Job } from '@/types';
 import { createJob, submitJob, fetchJobs } from '@/api/jobs';
 import { fetchReferences } from '@/api/references';
 import { fetchAnnotations } from '@/api/annotations';
-import { getPackages } from '@/api/server';
 import AnalysisWizard, { type StepConfig } from '@/components/analysis/AnalysisWizard';
 import ServerFileBrowser from '@/components/files/ServerFileBrowser';
 import ResourceSelector from '@/components/analysis/ResourceSelector';
@@ -292,52 +291,8 @@ export default function AnalysisPage() {
   /* ----- fetch references & annotations for sequencing types ----- */
   useEffect(() => {
     if (isSequencing(analysisType)) {
-      // Fetch installed packages and build reference/annotation lists
-      getPackages().then((res) => {
-        const pkgs = res.data ?? res;
-        if (!Array.isArray(pkgs)) return;
-        const installed = pkgs.filter((p: any) => p.status === 'installed');
-
-        // Build reference list from installed genome/transcriptome packages
-        const refs: Reference[] = installed
-          .filter((p: any) => p.name.includes('genome') || p.name.includes('transcriptome'))
-          .map((p: any, i: number) => ({
-            id: i + 1,
-            name: p.name,
-            species: p.species || (p.name.includes('Human') ? 'Human' : p.name.includes('Mouse') ? 'Mouse' : ''),
-            genome_build: p.build || '',
-            source: 'GENCODE',
-            path: p.name,
-            installed: true,
-            created_at: '',
-            // Track what tools this package is indexed for
-            indexed_for: p.name.includes('transcriptome') ? ['salmon']
-              : ['star', 'hisat2', 'bwa'],
-          }));
-        setReferences(refs as any);
-
-        // Build annotation list from installed annotation packages
-        const anns: Annotation[] = installed
-          .filter((p: any) => p.name.includes('small') || p.name.includes('circRNA') || p.name.includes('ncRNA'))
-          .map((p: any, i: number) => ({
-            id: i + 1,
-            name: p.name,
-            type: p.name.includes('small') || p.name.includes('ncRNA') ? 'small_ncRNA' : 'circRNA',
-            species: p.species || (p.name.includes('Human') ? 'Human' : 'Mouse'),
-            reference_id: 0,
-            path: p.name,
-            created_at: '',
-          }));
-        setAnnotations(anns);
-      });
-
-      // Also fetch any DB-registered references/annotations
-      fetchReferences().then((r) => {
-        if (r.length > 0) setReferences((prev) => [...prev, ...r]);
-      }).catch(() => {});
-      fetchAnnotations().then((a) => {
-        if (a.length > 0) setAnnotations((prev) => [...prev, ...a]);
-      }).catch(() => {});
+      fetchReferences().then(setReferences).catch(() => {});
+      fetchAnnotations().then(setAnnotations).catch(() => {});
     }
   }, [analysisType]);
 
@@ -810,46 +765,6 @@ export default function AnalysisPage() {
           </Alert>
         )}
 
-        {/* File browse dialog - reuses FileSelector's underlying ServerFileBrowser */}
-        <Dialog
-          open={browseTarget !== null}
-          onClose={() => setBrowseTarget(null)}
-          maxWidth="md"
-          fullWidth
-          PaperProps={{ sx: { background: 'rgba(17, 24, 39, 0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0, 229, 255, 0.15)' } }}
-        >
-          <DialogTitle sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.1)' }}>
-            {browseTarget?.field === 'both' ? 'Select R1 & R2 Files' : `Select ${browseTarget?.field === 'r2' ? 'R2' : 'R1'} File`}
-            {browseTarget !== null && samples[browseTarget.sampleIdx]?.name && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                for sample: {samples[browseTarget.sampleIdx].name}
-              </Typography>
-            )}
-          </DialogTitle>
-          <DialogContent sx={{ pt: 2 }}>
-            <ServerFileBrowser
-              onSelect={setBrowsePending}
-              multiple={browseTarget?.field === 'both'}
-              allowedExtensions={config.fileExtensions}
-              initialPath="/data/GSFintake"
-            />
-          </DialogContent>
-          <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.1)', px: 3, py: 1.5 }}>
-            <Typography variant="body2" sx={{ flex: 1, color: browsePending.length > 0 ? 'primary.main' : 'text.secondary' }}>
-              {browsePending.length > 0 ? `${browsePending.length} file(s) selected` : 'Click a file to select it'}
-            </Typography>
-            <Button onClick={() => { setBrowseTarget(null); setBrowsePending([]); }} sx={{ color: 'text.secondary' }}>
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              disabled={browsePending.length === 0}
-              onClick={() => { handleBrowseSelect(browsePending); setBrowsePending([]); }}
-            >
-              Confirm
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Stack>
     ),
   };
@@ -891,12 +806,12 @@ export default function AnalysisPage() {
                   <em>None</em>
                 </MenuItem>
                 {references
-                  .filter((ref: any) => {
+                  .filter((ref) => {
                     const algo = (ALGO_MAP[seqParams.algorithm] || seqParams.algorithm || '').toLowerCase();
-                    const indexedFor = (ref as any).indexed_for;
-                    if (!indexedFor) return true; // DB references don't have this field
-                    if (algo === 'salmon') return indexedFor.includes('salmon');
-                    return indexedFor.includes(algo) || indexedFor.includes('star') || indexedFor.includes('hisat2') || indexedFor.includes('bwa');
+                    const name = ref.name.toLowerCase();
+                    // Salmon needs transcriptome packages; alignment tools need genome packages
+                    if (algo === 'salmon') return name.includes('transcriptome');
+                    return name.includes('genome');
                   })
                   .map((ref) => (
                     <MenuItem key={ref.id} value={ref.id}>
@@ -1503,7 +1418,7 @@ export default function AnalysisPage() {
     // fallback
     return [setupStep, reviewStep];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisType, jobName, seqParams, sgParams, degsParams, pwParams, groupColors, references, annotations, allJobs, loadingJobs, submitError, config, samples, showBulkInput, bulkText, browseTarget]);
+  }, [analysisType, jobName, seqParams, sgParams, degsParams, pwParams, groupColors, references, annotations, allJobs, loadingJobs, submitError, config, samples, showBulkInput, bulkText]);
 
   return (
     <Box>
@@ -1512,6 +1427,49 @@ export default function AnalysisPage() {
         <Typography variant="h4">{config.title}</Typography>
       </Stack>
       <AnalysisWizard steps={steps} onSubmit={handleSubmit} submitting={submitting} />
+
+      {/* File browse dialog - rendered outside wizard to avoid re-memoization lag */}
+      <Dialog
+        open={browseTarget !== null}
+        onClose={() => { setBrowseTarget(null); setBrowsePending([]); }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { background: 'rgba(17, 24, 39, 0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0, 229, 255, 0.15)' } }}
+      >
+        <DialogTitle sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.1)' }}>
+          {browseTarget?.field === 'both' ? 'Select R1 & R2 Files' : `Select ${browseTarget?.field === 'r2' ? 'R2' : 'R1'} File`}
+          {browseTarget !== null && samples[browseTarget.sampleIdx]?.name && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              for sample: {samples[browseTarget.sampleIdx].name}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {browseTarget !== null && (
+            <ServerFileBrowser
+              onSelect={setBrowsePending}
+              multiple={browseTarget.field === 'both'}
+              allowedExtensions={config.fileExtensions}
+              initialPath="/data/GSFintake"
+            />
+          )}
+        </DialogContent>
+        <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.1)', px: 3, py: 1.5 }}>
+          <Typography variant="body2" sx={{ flex: 1, color: browsePending.length > 0 ? 'primary.main' : 'text.secondary' }}>
+            {browsePending.length > 0 ? `${browsePending.length} file(s) selected` : 'Click a file to select it'}
+          </Typography>
+          <Button onClick={() => { setBrowseTarget(null); setBrowsePending([]); }} sx={{ color: 'text.secondary' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={browsePending.length === 0}
+            onClick={() => { handleBrowseSelect(browsePending); setBrowsePending([]); }}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
