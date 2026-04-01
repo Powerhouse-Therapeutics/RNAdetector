@@ -1,12 +1,15 @@
 #!/usr/bin/env Rscript
 suppressPackageStartupMessages({
-  library(optparse)  
+  library(optparse)
   library(dplyr)
   library(log4r)
   library(rmarkdown)
   library(DT)
   library(ggplot2)
   library(plotly)
+  library(clusterProfiler)
+  library(enrichplot)
+  library(DOSE)
 })
 
 path.env <- new.env(parent = emptyenv())
@@ -257,6 +260,8 @@ build.report <- function (
   pathway.organism = "hsa",
   pathway.p.cut = 0.05,
   pathway.use.fdr = TRUE,
+  enable.go = TRUE,
+  enable.gsea = TRUE,
   verbose = TRUE,
   run.log = TRUE
 ) {
@@ -299,6 +304,14 @@ build.report <- function (
   } else {
     disp("  p-value threshold: ", pathway.p.cut)
   }
+  # Map organism to annotation database for GO/GSEA
+  org.db <- switch(pathway.organism,
+    "hsa" = org.Hs.eg.db::org.Hs.eg.db,
+    "mmu" = org.Mm.eg.db::org.Mm.eg.db,
+    "rno" = org.Rn.eg.db::org.Rn.eg.db,
+    org.Hs.eg.db::org.Hs.eg.db  # default to human
+  )
+
   ncon       <- length(contrasts.list)
   con.tables <- setNames(vector("list", ncon), contrasts.list)
   all.lfcs   <- setNames(vector("list", ncon), contrasts.list)
@@ -338,6 +351,91 @@ build.report <- function (
   }
   path.res <- Filter(function (x)(!is.null(x)), path.res)
   c.list   <- names(path.res)
+
+  # GO Term Enrichment Analysis
+  go.results <- setNames(vector("list", length(c.list)), c.list)
+  if (enable.go) {
+    disp("Running GO term enrichment analysis...")
+    for (con in c.list) {
+      disp("  GO enrichment for contrast: ", con)
+      sign.lfcs <- all.lfcs[[con]]
+      if (is.null(sign.lfcs) || nrow(sign.lfcs$lfcs) == 0) next()
+
+      # Get gene list for enrichment
+      gene.list <- sign.lfcs$lfcs$mapped_id[!is.na(sign.lfcs$lfcs$mapped_id)]
+      universe <- sign.lfcs$all.probes
+
+      tryCatch({
+        # Biological Process
+        go.bp <- enrichGO(gene = gene.list, universe = universe,
+                          OrgDb = org.db, keyType = "ENTREZID",
+                          ont = "BP", pAdjustMethod = "BH",
+                          pvalueCutoff = pathway.p.cut, readable = TRUE)
+
+        # Molecular Function
+        go.mf <- enrichGO(gene = gene.list, universe = universe,
+                          OrgDb = org.db, keyType = "ENTREZID",
+                          ont = "MF", pAdjustMethod = "BH",
+                          pvalueCutoff = pathway.p.cut, readable = TRUE)
+
+        # Cellular Component
+        go.cc <- enrichGO(gene = gene.list, universe = universe,
+                          OrgDb = org.db, keyType = "ENTREZID",
+                          ont = "CC", pAdjustMethod = "BH",
+                          pvalueCutoff = pathway.p.cut, readable = TRUE)
+
+        go.results[[con]] <- list(BP = go.bp, MF = go.mf, CC = go.cc)
+        disp("    GO enrichment completed for ", con)
+      }, error = function(e) {
+        disp("    GO enrichment failed: ", e$message)
+      })
+    }
+  }
+
+  # Gene Set Enrichment Analysis (GSEA)
+  gsea.results <- setNames(vector("list", length(c.list)), c.list)
+  if (enable.gsea) {
+    disp("Running GSEA...")
+    for (con in c.list) {
+      disp("  GSEA for contrast: ", con)
+      con.table <- con.tables[[con]]
+      if (is.null(con.table)) next()
+
+      lfcs <- get.lfcs(con.table)
+      if (is.null(lfcs)) next()
+
+      tryCatch({
+        # Prepare ranked gene list (sorted by log2FC)
+        gene.ranks <- setNames(lfcs$lfc, lfcs$id)
+        # Map to Entrez IDs through source.data
+        mapped <- source.data[match(names(gene.ranks), source.data$id), "mapped_id"]
+        names(gene.ranks) <- mapped
+        gene.ranks <- gene.ranks[!is.na(names(gene.ranks))]
+        gene.ranks <- sort(gene.ranks, decreasing = TRUE)
+
+        # GSEA on KEGG pathways
+        gsea.kegg <- gseKEGG(geneList = gene.ranks,
+                              organism = pathway.organism,
+                              pvalueCutoff = pathway.p.cut,
+                              pAdjustMethod = "BH",
+                              verbose = FALSE)
+
+        # GSEA on GO terms
+        gsea.go <- gseGO(geneList = gene.ranks,
+                          OrgDb = org.db,
+                          ont = "BP",
+                          pvalueCutoff = pathway.p.cut,
+                          pAdjustMethod = "BH",
+                          verbose = FALSE)
+
+        gsea.results[[con]] <- list(kegg = gsea.kegg, go = gsea.go)
+        disp("    GSEA completed for ", con)
+      }, error = function(e) {
+        disp("    GSEA failed: ", e$message)
+      })
+    }
+  }
+
   path.with.p <- setNames(lapply(path.res, function (res) {
     pt <- res$pathway.table
     if (pathway.use.fdr) {
@@ -385,6 +483,8 @@ build.report <- function (
     contrast.tables=con.tables,
     log.fold.changes=all.lfcs,
     pathway.results=path.res,
+    go.results=go.results,
+    gsea.results=gsea.results,
     contrasts.list=contrasts.list
   )
   save(analysis.data, file = paste0(output.paths$data, "/analysis.RData"))
@@ -402,8 +502,10 @@ option_list <- list(
   make_option(c("--degs-no-fdr"), type="logical", default=TRUE, help="DEGs: disable FDR threshold", action = "store_false"),
   make_option(c("--path-org"), type="character", default="hsa", help="Pathway Analysis: organism", metavar="number"),
   make_option(c("--path-p"), type="numeric", default=0.05, help="Pathway Analysis: p-value threshold", metavar="number"),
-  make_option(c("--path-no-fdr"), type="logical", default=TRUE, help="Pathway Analysis: disable FDR threshold", action = "store_false")
-); 
+  make_option(c("--path-no-fdr"), type="logical", default=TRUE, help="Pathway Analysis: disable FDR threshold", action = "store_false"),
+  make_option(c("--enable-go"), type="logical", default=FALSE, help="Enable GO term enrichment analysis", action = "store_true"),
+  make_option(c("--enable-gsea"), type="logical", default=FALSE, help="Enable Gene Set Enrichment Analysis (GSEA)", action = "store_true")
+);
 
 opt_parser <- OptionParser(option_list=option_list)
 opt        <- parse_args(opt_parser)
@@ -426,7 +528,9 @@ res <- suppressWarnings(build.report(
   degs.use.fdr = opt[["degs-no-fdr"]],
   pathway.organism = opt[["path-org"]],
   pathway.p.cut = opt[["path-p"]],
-  pathway.use.fdr = opt[["path-no-fdr"]]
+  pathway.use.fdr = opt[["path-no-fdr"]],
+  enable.go = opt[["enable-go"]],
+  enable.gsea = opt[["enable-gsea"]]
 ))
 
 # Generate enhanced pathway analysis report with Materials & Methods
