@@ -46,7 +46,7 @@ import { fetchReferences } from '@/api/references';
 import { fetchAnnotations } from '@/api/annotations';
 import { getPackages } from '@/api/server';
 import AnalysisWizard, { type StepConfig } from '@/components/analysis/AnalysisWizard';
-import FileSelector from '@/components/files/FileSelector';
+import ServerFileBrowser from '@/components/files/ServerFileBrowser';
 import ResourceSelector from '@/components/analysis/ResourceSelector';
 import { ColorGroupEditor } from '@/components/ui/ColorPicker';
 
@@ -251,6 +251,7 @@ export default function AnalysisPage() {
   const [showBulkInput, setShowBulkInput] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [browseTarget, setBrowseTarget] = useState<{ sampleIdx: number; field: 'r1' | 'r2' | 'both' } | null>(null);
+  const [browsePending, setBrowsePending] = useState<FileEntry[]>([]);
 
   const [groupColors, setGroupColors] = useState<{name: string; color: string}[]>([
     { name: 'Control', color: '#3B82F6' },
@@ -825,18 +826,24 @@ export default function AnalysisPage() {
               </Typography>
             )}
           </DialogTitle>
-          <DialogContent sx={{ p: 0, mt: 1 }}>
-            <FileSelector
-              value={[]}
-              onChange={(files) => handleBrowseSelect(files)}
+          <DialogContent sx={{ pt: 2 }}>
+            <ServerFileBrowser
+              onSelect={setBrowsePending}
               multiple={browseTarget?.field === 'both'}
-              filters={config.fileExtensions}
+              allowedExtensions={config.fileExtensions}
               initialPath="/data/GSFintake"
             />
           </DialogContent>
           <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.1)' }}>
-            <Button onClick={() => setBrowseTarget(null)} sx={{ color: 'text.secondary' }}>
+            <Button onClick={() => { setBrowseTarget(null); setBrowsePending([]); }} sx={{ color: 'text.secondary' }}>
               Cancel
+            </Button>
+            <Button
+              variant="contained"
+              disabled={browsePending.length === 0}
+              onClick={() => { handleBrowseSelect(browsePending); setBrowsePending([]); }}
+            >
+              Confirm ({browsePending.length})
             </Button>
           </DialogActions>
         </Dialog>
