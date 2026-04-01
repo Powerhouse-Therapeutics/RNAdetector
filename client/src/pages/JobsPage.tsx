@@ -19,11 +19,17 @@ const statusConfig: Record<JobStatus, { color: string; label: string }> = {
 
 const typeLabels: Record<string, string> = {
   long_rna: 'RNA-seq',
+  long_rna_job_type: 'RNA-seq',
   small_rna: 'Small RNA',
+  small_rna_job_type: 'Small RNA',
   circ_rna: 'CircRNA',
+  circ_rna_job_type: 'CircRNA',
   sample_group: 'Sample Group',
+  samples_group_job_type: 'Sample Group',
   diff_expr: 'DEGs Analysis',
+  diff_expr_analysis_job_type: 'DEGs Analysis',
   pathway: 'Pathway',
+  pathway_analysis_job_type: 'Pathway',
 };
 
 export default function JobsPage() {

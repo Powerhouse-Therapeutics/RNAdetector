@@ -39,39 +39,54 @@ interface AnalysisParams {
   memoryGB: number;
 }
 
+// Algorithm display names -> backend values
+const ALGO_MAP: Record<string, string> = {
+  'STAR': 'star',
+  'HISAT2': 'hisat2',
+  'Salmon': 'salmon',
+  'BWA': 'bwa',
+  'CIRI2': 'ciri',
+  'DESeq2': 'deseq',
+  'edgeR': 'edger',
+  'limma-voom': 'limma',
+};
+
 const ANALYSIS_CONFIG: Record<
   string,
-  { title: string; algorithms: string[]; fileExtensions: string[]; description: string }
+  { title: string; algorithms: string[]; fileExtensions: string[]; description: string; needsGenome?: boolean }
 > = {
   long_rna: {
     title: 'Long RNA-Seq Analysis',
-    algorithms: ['STAR', 'HISAT2', 'Salmon', 'Kallisto'],
+    algorithms: ['STAR', 'HISAT2', 'Salmon'],
     fileExtensions: ['.fastq', '.fq', '.fastq.gz', '.fq.gz', '.bam'],
-    description: 'Quantify gene and transcript expression from long RNA sequencing data.',
+    description: 'Quantify gene and transcript expression from long RNA sequencing data. Uses STAR/HISAT2 for alignment or Salmon for quasi-mapping.',
+    needsGenome: true,
   },
   small_rna: {
     title: 'Small RNA-Seq Analysis',
-    algorithms: ['BWA', 'Bowtie2', 'miRDeep2'],
+    algorithms: ['STAR', 'HISAT2', 'Salmon'],
     fileExtensions: ['.fastq', '.fq', '.fastq.gz', '.fq.gz'],
-    description: 'Identify and quantify small RNAs including miRNAs and piRNAs.',
+    description: 'Identify and quantify small RNAs including miRNAs, snoRNAs, and piRNAs using BWA alignment.',
+    needsGenome: true,
   },
   circ_rna: {
     title: 'Circular RNA Analysis',
-    algorithms: ['CIRI2', 'CIRCexplorer2', 'find_circ'],
+    algorithms: ['CIRI2'],
     fileExtensions: ['.fastq', '.fq', '.fastq.gz', '.fq.gz', '.bam'],
-    description: 'Detect and quantify circular RNA transcripts.',
+    description: 'Detect and quantify circular RNA transcripts using CIRI2/CIRIquant with BWA alignment.',
+    needsGenome: true,
   },
   diff_expr: {
     title: 'Differential Expression',
     algorithms: ['DESeq2', 'edgeR', 'limma-voom'],
-    fileExtensions: ['.tsv', '.csv', '.txt'],
-    description: 'Perform differential expression analysis between sample groups.',
+    fileExtensions: [],
+    description: 'Perform differential expression analysis between sample groups. Requires a completed Sample Group job.',
   },
   pathway: {
     title: 'Pathway Analysis',
-    algorithms: ['GSEA', 'GOseq', 'KEGG'],
-    fileExtensions: ['.tsv', '.csv', '.txt'],
-    description: 'Identify enriched biological pathways and gene ontology terms.',
+    algorithms: [],
+    fileExtensions: [],
+    description: 'Identify enriched biological pathways using MITHrIL. Requires a completed DEGs analysis job.',
   },
 };
 
@@ -129,24 +144,76 @@ export default function AnalysisPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const algoBackend = ALGO_MAP[params.algorithm] || params.algorithm.toLowerCase();
+      let backendParams: Record<string, unknown> = {};
+
+      if (['long_rna', 'small_rna', 'circ_rna'].includes(analysisType)) {
+        // Sequencing analysis types use common parameters
+        backendParams = {
+          paired: params.inputType === 'paired',
+          inputType: params.inputFormat === 'BAM' ? 'BAM' : 'fastq',
+          firstInputFile: params.files[0]?.path ?? '',
+          algorithm: algoBackend,
+          threads: params.threads,
+        };
+        if (params.inputType === 'paired' && params.files.length > 1) {
+          backendParams.secondInputFile = params.files[1].path;
+        }
+        // Reference genome
+        const ref = params.referenceId ? references.find((r) => r.id === params.referenceId) : null;
+        if (ref) backendParams.genome = ref.name;
+        // Annotation
+        const ann = params.annotationId ? annotations.find((a) => a.id === params.annotationId) : null;
+        if (ann) backendParams.annotation = ann.name;
+        // Transcriptome (for Salmon)
+        if (algoBackend === 'salmon' && ref) {
+          backendParams.transcriptome = ref.name;
+        }
+        // Counting algorithm required for alignment-based methods
+        if (algoBackend !== 'salmon') {
+          backendParams.countingAlgorithm = 'feature-counts';
+        }
+      } else if (analysisType === 'sample_group') {
+        // Sample group requires completed job IDs
+        backendParams = {
+          jobs: params.files.map((f) => parseInt(f.name) || 0).filter(Boolean),
+        };
+      } else if (analysisType === 'diff_expr') {
+        // DEGs requires a sample group job and contrasts
+        backendParams = {
+          source_sample_group: parseInt(params.files[0]?.name ?? '0') || undefined,
+          sample_type: 'gene',
+          condition_variables: ['condition'],
+          contrasts: [{ control: 'control', case: 'treatment' }],
+          parameters: {
+            pcut: 0.05,
+            norm: 'deseq',
+            stats: [algoBackend],
+            adjust_method: 'BH',
+            when_apply_filter: 'prenorm',
+          },
+        };
+      } else if (analysisType === 'pathway') {
+        // Pathway analysis requires a completed DEGs job
+        backendParams = {
+          degs_analysis: parseInt(params.files[0]?.name ?? '0') || undefined,
+          degs: { p_cutoff: 0.05, p_use_fdr: true, lfc_threshold: 0 },
+          pathways: { organism: 'hsa', p_cutoff: 0.05, p_use_fdr: true },
+        };
+      }
+
       const job = await createJob({
         name: params.jobName,
         type: (typeMap[analysisType] || analysisType) as any,
-        parameters: {
-          input_type: params.inputType,
-          input_format: params.inputFormat,
-          files: params.files.map((f) => f.path),
-          algorithm: params.algorithm,
-          reference_id: params.referenceId || undefined,
-          annotation_id: params.annotationId || undefined,
-          threads: params.threads,
-          memory_gb: params.memoryGB,
-        },
+        parameters: backendParams,
       });
       await submitJob(job.id);
       navigate('/jobs');
     } catch (err: any) {
-      setSubmitError(err?.response?.data?.message || 'Failed to submit analysis job.');
+      const msg = err?.response?.data?.errors
+        ? Object.values(err.response.data.errors).flat().join('; ')
+        : err?.response?.data?.message || 'Failed to submit analysis job.';
+      setSubmitError(msg);
     } finally {
       setSubmitting(false);
     }
