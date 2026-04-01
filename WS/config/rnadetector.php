@@ -21,5 +21,17 @@ return [
     'human_sncrna_annotation_name'    => env('HUMAN_SNCRNA_ANNOTATION_NAME', 'Human_hg19_small_ncRNAs'),
     'human_rna_annotation_name'       => env('HUMAN_RNA_ANNOTATION_NAME', 'Human_hg19_RNAs'),
 
+    /*
+     * Browsable volumes for the file browser
+     */
+    'browsable_volumes'               => array_filter(array_map(function ($entry) {
+        $parts = explode(':', trim($entry), 2);
+        if (count($parts) === 2) {
+            return ['path' => $parts[0], 'label' => $parts[1]];
+        } elseif (count($parts) === 1 && !empty($parts[0])) {
+            return ['path' => $parts[0], 'label' => basename($parts[0])];
+        }
+        return null;
+    }, explode(',', env('BROWSABLE_VOLUMES', '/rnadetector/ws/storage/app/public:Job Outputs')))),
 
 ];

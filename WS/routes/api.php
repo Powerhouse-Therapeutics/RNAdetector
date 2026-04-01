@@ -77,6 +77,17 @@ Route::group(
 
         Route::get('/templates', 'Api\\TemplateController@index');
         Route::get('/templates/{name}/download', 'Api\\TemplateController@download');
+
+        // File browser routes
+        Route::get('/files/volumes', 'Api\FileBrowserController@volumes');
+        Route::get('/files/browse', 'Api\FileBrowserController@browse');
+        Route::get('/files/search', 'Api\FileBrowserController@search');
+
+        // Server management routes
+        Route::get('/server/status', 'Api\ServerController@status');
+        Route::get('/server/packages', 'Api\ServerController@packages');
+        Route::post('/server/packages/{name}/install', 'Api\ServerController@install');
+        Route::get('/server/packages/{name}/status', 'Api\ServerController@installStatus');
     }
 );
 
