@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   List,
@@ -121,13 +121,6 @@ export default function ServerFileBrowser({
     setCurrentPath(path);
   };
 
-  // Notify parent whenever selectedFiles changes
-  const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
-  useEffect(() => {
-    onSelectRef.current(selectedFiles);
-  }, [selectedFiles]);
-
   const handleFileToggle = (entry: FileEntry) => {
     if (entry.type === 'directory') {
       handleNavigate(entry.path);
@@ -135,18 +128,24 @@ export default function ServerFileBrowser({
     }
 
     if (!multiple) {
-      setSelectedFiles([entry]);
+      const next = [entry];
+      setSelectedFiles(next);
+      onSelect(next);
       return;
     }
 
-    setSelectedFiles((prev) => {
-      const exists = prev.find((f) => f.path === entry.path);
-      return exists ? prev.filter((f) => f.path !== entry.path) : [...prev, entry];
-    });
+    const exists = selectedFiles.find((f) => f.path === entry.path);
+    const next = exists
+      ? selectedFiles.filter((f) => f.path !== entry.path)
+      : [...selectedFiles, entry];
+    setSelectedFiles(next);
+    onSelect(next);
   };
 
   const handleRemoveFile = (path: string) => {
-    setSelectedFiles((prev) => prev.filter((f) => f.path !== path));
+    const next = selectedFiles.filter((f) => f.path !== path);
+    setSelectedFiles(next);
+    onSelect(next);
   };
 
   const pathSegments = currentPath.split('/').filter(Boolean);

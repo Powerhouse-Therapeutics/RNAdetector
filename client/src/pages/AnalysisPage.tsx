@@ -828,35 +828,26 @@ export default function AnalysisPage() {
           </DialogTitle>
           <DialogContent sx={{ pt: 2 }}>
             <ServerFileBrowser
-              onSelect={(files) => {
-                if (browseTarget?.field !== 'both') {
-                  // Single file mode: auto-confirm on selection
-                  if (files.length > 0) {
-                    handleBrowseSelect(files);
-                    setBrowsePending([]);
-                  }
-                } else {
-                  setBrowsePending(files);
-                }
-              }}
+              onSelect={setBrowsePending}
               multiple={browseTarget?.field === 'both'}
               allowedExtensions={config.fileExtensions}
               initialPath="/data/GSFintake"
             />
           </DialogContent>
-          <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.1)' }}>
+          <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.1)', px: 3, py: 1.5 }}>
+            <Typography variant="body2" sx={{ flex: 1, color: browsePending.length > 0 ? 'primary.main' : 'text.secondary' }}>
+              {browsePending.length > 0 ? `${browsePending.length} file(s) selected` : 'Click a file to select it'}
+            </Typography>
             <Button onClick={() => { setBrowseTarget(null); setBrowsePending([]); }} sx={{ color: 'text.secondary' }}>
               Cancel
             </Button>
-            {browseTarget?.field === 'both' && (
-              <Button
-                variant="contained"
-                disabled={browsePending.length === 0}
-                onClick={() => { handleBrowseSelect(browsePending); setBrowsePending([]); }}
-              >
-                Confirm ({browsePending.length})
-              </Button>
-            )}
+            <Button
+              variant="contained"
+              disabled={browsePending.length === 0}
+              onClick={() => { handleBrowseSelect(browsePending); setBrowsePending([]); }}
+            >
+              Confirm
+            </Button>
           </DialogActions>
         </Dialog>
       </Stack>
