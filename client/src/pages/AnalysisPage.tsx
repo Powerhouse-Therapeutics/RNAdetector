@@ -828,7 +828,17 @@ export default function AnalysisPage() {
           </DialogTitle>
           <DialogContent sx={{ pt: 2 }}>
             <ServerFileBrowser
-              onSelect={setBrowsePending}
+              onSelect={(files) => {
+                if (browseTarget?.field !== 'both') {
+                  // Single file mode: auto-confirm on selection
+                  if (files.length > 0) {
+                    handleBrowseSelect(files);
+                    setBrowsePending([]);
+                  }
+                } else {
+                  setBrowsePending(files);
+                }
+              }}
               multiple={browseTarget?.field === 'both'}
               allowedExtensions={config.fileExtensions}
               initialPath="/data/GSFintake"
@@ -838,13 +848,15 @@ export default function AnalysisPage() {
             <Button onClick={() => { setBrowseTarget(null); setBrowsePending([]); }} sx={{ color: 'text.secondary' }}>
               Cancel
             </Button>
-            <Button
-              variant="contained"
-              disabled={browsePending.length === 0}
-              onClick={() => { handleBrowseSelect(browsePending); setBrowsePending([]); }}
-            >
-              Confirm ({browsePending.length})
-            </Button>
+            {browseTarget?.field === 'both' && (
+              <Button
+                variant="contained"
+                disabled={browsePending.length === 0}
+                onClick={() => { handleBrowseSelect(browsePending); setBrowsePending([]); }}
+              >
+                Confirm ({browsePending.length})
+              </Button>
+            )}
           </DialogActions>
         </Dialog>
       </Stack>
