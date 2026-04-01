@@ -6,12 +6,19 @@ output:
     toc: true
     toc_float: true
     toc_depth: 5
-    self_contained: false
+    self_contained: true
     lib_dir: libs
     theme: paper
+    code_folding: show
+bibliography: ../reports/references.bib
 ---
 
-```{css, echo=FALSE}
+# Materials and Methods {-}
+
+```{r child='../reports/materials_methods.Rmd'}
+```
+
+```{css, echo=TRUE, message=FALSE, warning=FALSE}
 body p { text-align: justify}
 body p.caption {
   font-size: 0.9em;
@@ -21,11 +28,11 @@ body p.caption {
 }
 ```
 
-```{css, echo=FALSE}
+```{css, echo=TRUE, message=FALSE, warning=FALSE}
 table.dataTable{clear:both;margin-top:6px !important;margin-bottom:6px !important;max-width:none !important;border-collapse:separate !important}table.dataTable td,table.dataTable th{-webkit-box-sizing:content-box;box-sizing:content-box}table.dataTable td.dataTables_empty,table.dataTable th.dataTables_empty{text-align:center}table.dataTable.nowrap th,table.dataTable.nowrap td{white-space:nowrap}div.dataTables_wrapper div.dataTables_length label{font-weight:normal;text-align:left;white-space:nowrap}div.dataTables_wrapper div.dataTables_length select{width:75px;display:inline-block}div.dataTables_wrapper div.dataTables_filter{text-align:right}div.dataTables_wrapper div.dataTables_filter label{font-weight:normal;white-space:nowrap;text-align:left}div.dataTables_wrapper div.dataTables_filter input{margin-left:0.5em;display:inline-block;width:auto}div.dataTables_wrapper div.dataTables_info{padding-top:8px;white-space:nowrap}div.dataTables_wrapper div.dataTables_paginate{margin:0;white-space:nowrap;text-align:right}div.dataTables_wrapper div.dataTables_paginate ul.pagination{margin:2px 0;white-space:nowrap}div.dataTables_wrapper div.dataTables_processing{position:absolute;top:50%;left:50%;width:200px;margin-left:-100px;margin-top:-26px;text-align:center;padding:1em 0}table.dataTable thead>tr>th.sorting_asc,table.dataTable thead>tr>th.sorting_desc,table.dataTable thead>tr>th.sorting,table.dataTable thead>tr>td.sorting_asc,table.dataTable thead>tr>td.sorting_desc,table.dataTable thead>tr>td.sorting{padding-right:30px}table.dataTable thead>tr>th:active,table.dataTable thead>tr>td:active{outline:none}table.dataTable thead .sorting,table.dataTable thead .sorting_asc,table.dataTable thead .sorting_desc,table.dataTable thead .sorting_asc_disabled,table.dataTable thead .sorting_desc_disabled{cursor:pointer;position:relative}table.dataTable thead .sorting:after,table.dataTable thead .sorting_asc:after,table.dataTable thead .sorting_desc:after,table.dataTable thead .sorting_asc_disabled:after,table.dataTable thead .sorting_desc_disabled:after{position:absolute;bottom:8px;right:8px;display:block;font-family:'Glyphicons Halflings';opacity:0.5}table.dataTable thead .sorting:after{opacity:0.2;content:"\e150"}table.dataTable thead .sorting_asc:after{content:"\e155"}table.dataTable thead .sorting_desc:after{content:"\e156"}table.dataTable thead .sorting_asc_disabled:after,table.dataTable thead .sorting_desc_disabled:after{color:#eee}div.dataTables_scrollHead table.dataTable{margin-bottom:0 !important}div.dataTables_scrollBody>table{border-top:none;margin-top:0 !important;margin-bottom:0 !important}div.dataTables_scrollBody>table>thead .sorting:after,div.dataTables_scrollBody>table>thead .sorting_asc:after,div.dataTables_scrollBody>table>thead .sorting_desc:after{display:none}div.dataTables_scrollBody>table>tbody>tr:first-child>th,div.dataTables_scrollBody>table>tbody>tr:first-child>td{border-top:none}div.dataTables_scrollFoot>.dataTables_scrollFootInner{box-sizing:content-box}div.dataTables_scrollFoot>.dataTables_scrollFootInner>table{margin-top:0 !important;border-top:none}@media screen and (max-width: 767px){div.dataTables_wrapper div.dataTables_length,div.dataTables_wrapper div.dataTables_filter,div.dataTables_wrapper div.dataTables_info,div.dataTables_wrapper div.dataTables_paginate{text-align:center}}table.dataTable.table-condensed>thead>tr>th{padding-right:20px}table.dataTable.table-condensed .sorting:after,table.dataTable.table-condensed .sorting_asc:after,table.dataTable.table-condensed .sorting_desc:after{top:6px;right:6px}table.table-bordered.dataTable th,table.table-bordered.dataTable td{border-left-width:0}table.table-bordered.dataTable th:last-child,table.table-bordered.dataTable th:last-child,table.table-bordered.dataTable td:last-child,table.table-bordered.dataTable td:last-child{border-right-width:0}table.table-bordered.dataTable tbody th,table.table-bordered.dataTable tbody td{border-bottom-width:0}div.dataTables_scrollHead table.table-bordered{border-bottom-width:0}div.table-responsive>div.dataTables_wrapper>div.row{margin:0}div.table-responsive>div.dataTables_wrapper>div.row>div[class^="col-"]:first-child{padding-left:0}div.table-responsive>div.dataTables_wrapper>div.row>div[class^="col-"]:last-child{padding-right:0}
 ```
 
-```{css, echo=FALSE}
+```{css, echo=TRUE, message=FALSE, warning=FALSE}
 #preloader {
   position: fixed;
   left: 0;
@@ -81,7 +88,7 @@ table.dataTable{clear:both;margin-top:6px !important;margin-bottom:6px !importan
 <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
 :::
 
-```{js, echo=FALSE}
+```{js, echo=TRUE, message=FALSE, warning=FALSE}
 $(function() {
   $(window).on('load', function() {
     $('#preloader').fadeOut('slow',function(){$(this).remove();});
@@ -91,7 +98,7 @@ $(function() {
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 #Determine the output format of the document
 outputFormat <- knitr::opts_knit$get("rmarkdown.pandoc.to")
 #Figure and Table Caption Numbering, for HTML do it manually
@@ -166,6 +173,126 @@ if (no.pathway.found) {
 ```
 `r paste(knitr::knit(text = out), collapse = '\n')`
 
+# Gene Ontology Enrichment {-}
+
+```{r go-setup, echo=FALSE, message=FALSE}
+# Check if GO enrichment results are available
+has.go.results <- exists("go.results") && !is.null(go.results) &&
+                  length(Filter(Negate(is.null), go.results)) > 0
+```
+
+```{r go-results, echo=FALSE, eval=has.go.results, results='asis', fig.width=10, fig.height=8}
+for (con in names(go.results)) {
+  if (is.null(go.results[[con]])) next
+
+  cat("\n## ", contrasts.to.text(con), " {-}\n\n")
+
+  # Biological Process
+  if (!is.null(go.results[[con]]$BP) && nrow(as.data.frame(go.results[[con]]$BP)) > 0) {
+    cat("\n### Biological Process {-}\n\n")
+    cat("Top enriched GO Biological Process terms:\n\n")
+    print(dotplot(go.results[[con]]$BP, showCategory = 20, title = "GO Biological Process") +
+          theme_minimal(base_size = 10))
+    cat("\n\n")
+    print(knitr::kable(head(as.data.frame(go.results[[con]]$BP)[, c("ID", "Description", "GeneRatio", "pvalue", "p.adjust", "Count")], 20)))
+  }
+
+  # Molecular Function
+  if (!is.null(go.results[[con]]$MF) && nrow(as.data.frame(go.results[[con]]$MF)) > 0) {
+    cat("\n### Molecular Function {-}\n\n")
+    print(dotplot(go.results[[con]]$MF, showCategory = 15, title = "GO Molecular Function") +
+          theme_minimal(base_size = 10))
+  }
+
+  # Cellular Component
+  if (!is.null(go.results[[con]]$CC) && nrow(as.data.frame(go.results[[con]]$CC)) > 0) {
+    cat("\n### Cellular Component {-}\n\n")
+    print(dotplot(go.results[[con]]$CC, showCategory = 15, title = "GO Cellular Component") +
+          theme_minimal(base_size = 10))
+  }
+}
+```
+
+```{r go-none, echo=FALSE, eval=!has.go.results, results='asis'}
+cat("GO term enrichment analysis was not performed or produced no significant results.\n\n")
+```
+
+# Gene Set Enrichment Analysis (GSEA) {-}
+
+```{r gsea-setup, echo=FALSE, message=FALSE}
+has.gsea.results <- exists("gsea.results") && !is.null(gsea.results) &&
+                    length(Filter(Negate(is.null), gsea.results)) > 0
+```
+
+```{r gsea-results, echo=FALSE, eval=has.gsea.results, results='asis', fig.width=10, fig.height=8}
+for (con in names(gsea.results)) {
+  if (is.null(gsea.results[[con]])) next
+
+  cat("\n## ", contrasts.to.text(con), " {-}\n\n")
+
+  # GSEA KEGG
+  if (!is.null(gsea.results[[con]]$kegg) && nrow(as.data.frame(gsea.results[[con]]$kegg)) > 0) {
+    cat("\n### GSEA - KEGG Pathways {-}\n\n")
+
+    # Enrichment plot for top pathways
+    gsea.df <- as.data.frame(gsea.results[[con]]$kegg)
+    cat("Found", nrow(gsea.df), "significantly enriched KEGG pathways by GSEA.\n\n")
+
+    # Ridge plot
+    print(ridgeplot(gsea.results[[con]]$kegg, showCategory = 15) +
+          labs(title = "GSEA KEGG Pathway Ridge Plot") +
+          theme_minimal(base_size = 10))
+    cat("\n\n")
+
+    # Dot plot
+    print(dotplot(gsea.results[[con]]$kegg, showCategory = 20, title = "GSEA KEGG Enrichment") +
+          theme_minimal(base_size = 10))
+    cat("\n\n")
+
+    # Individual enrichment plots for top 5 pathways
+    top.pathways <- head(gsea.df[order(gsea.df$p.adjust), ], 5)
+    for (i in seq_len(nrow(top.pathways))) {
+      cat("\n#### ", top.pathways$Description[i], " {-}\n\n")
+      print(gseaplot2(gsea.results[[con]]$kegg, geneSetID = i,
+                       title = top.pathways$Description[i]))
+      cat("\n\n")
+    }
+
+    # Results table
+    print(knitr::kable(head(gsea.df[, c("ID", "Description", "setSize", "enrichmentScore", "NES", "pvalue", "p.adjust")], 20),
+                       caption = "Top GSEA KEGG pathway results"))
+  }
+
+  # GSEA GO
+  if (!is.null(gsea.results[[con]]$go) && nrow(as.data.frame(gsea.results[[con]]$go)) > 0) {
+    cat("\n### GSEA - GO Biological Process {-}\n\n")
+
+    gsea.go.df <- as.data.frame(gsea.results[[con]]$go)
+    cat("Found", nrow(gsea.go.df), "significantly enriched GO BP terms by GSEA.\n\n")
+
+    print(dotplot(gsea.results[[con]]$go, showCategory = 20, title = "GSEA GO BP Enrichment") +
+          theme_minimal(base_size = 10))
+    cat("\n\n")
+
+    # Enrichment map if enough results
+    if (nrow(gsea.go.df) >= 5) {
+      tryCatch({
+        gsea.go.pairwise <- pairwise_termsim(gsea.results[[con]]$go)
+        print(emapplot(gsea.go.pairwise, showCategory = 30) +
+              labs(title = "GO Term Enrichment Map"))
+        cat("\n\n")
+      }, error = function(e) {
+        cat("Enrichment map could not be generated.\n\n")
+      })
+    }
+  }
+}
+```
+
+```{r gsea-none, echo=FALSE, eval=!has.gsea.results, results='asis'}
+cat("GSEA was not performed or produced no significant results.\n\n")
+```
+
 ## References
 
 - Alaimo, S., Giugno, R., Acunzo, M., Veneziano, D., Ferro, A. and Pulvirenti, A.: Post-transcriptional knowledge in pathway analysis increases the accuracy of phenotypes classification. Oncotarget 7: 34 (2016).
@@ -177,3 +304,11 @@ if (no.pathway.found) {
 - Kanehisa, M., Goto, S., Furumichi, M., Tanabe, M., Hirakawa, M.: KEGG for representation and analysis of molecular networks involving diseases and drugs. Nucleic Acids Research 38: D355-D360 (2010).
 - Kanehisa, M., Goto, S., Sato, Y., Furumichi, M., Tanabe, M.: KEGG for integration and interpretation of large-scale molecular datasets. Nucleic Acids Research 40: D109-D114 (2012).
 - Kanehisa, M., Goto, S., Sato, Y., Kawashima, M., Furumichi, M., and Tanabe, M.; Data, information, knowledge and principle: back to metabolism in KEGG. Nucleic Acids Research 42: D199-D205 (2014).
+
+# Session Information {-}
+
+```{r session-info, echo=TRUE}
+sessionInfo()
+```
+
+# References {-}

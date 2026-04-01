@@ -1,0 +1,145 @@
+## Materials and Methods
+
+### RNA-Seq Data Processing
+
+Raw sequencing reads in FASTQ format were processed using the RNAdetector pipeline (v`r params$pipeline_version`) [@rnadetector_cite]. All analyses were conducted using R [@r_cite] with packages from the Bioconductor project [@bioconductor_cite].
+
+`r if(params$trim_enabled) paste0("#### Quality Trimming\n\nQuality trimming and adapter removal were performed using Trim Galore v0.6.6 [@trim_galore_cite], which wraps Cutadapt [@cutadapt_cite] and FastQC [@fastqc_cite]. Reads were trimmed with a minimum Phred quality score threshold of ", params$trim_quality, " and a minimum read length of ", params$trim_length, " bp. Adapter sequences were auto-detected and removed.")`
+
+`r if(!params$trim_enabled) "No quality trimming was applied to the raw reads prior to alignment."`
+
+### Read Alignment
+
+```{r alignment_methods, echo=TRUE, results='asis'}
+# Generate alignment methods text based on the algorithm used
+if (params$algorithm == "star") {
+  cat("Reads were aligned to the ", params$genome_name, " reference genome using STAR v2.7.9a [@star_cite], a splice-aware aligner optimized for RNA-Seq data. ",
+      "STAR was run in two-pass mode with ", params$threads, " threads. ",
+      "The genome index was generated using the reference annotation ", params$annotation_name, ". ",
+      "Default STAR parameters were used unless otherwise noted, including a maximum of 10 multi-mapping locations per read. ",
+      "Aligned reads were output in BAM format, sorted by coordinate.\n", sep = "")
+} else if (params$algorithm == "hisat2") {
+  cat("Reads were aligned to the ", params$genome_name, " reference genome using HISAT2 v2.2.1 [@hisat2_cite]. ",
+      "HISAT2 employs a graph-based alignment approach using a Hierarchical Graph FM index. ",
+      "The alignment was performed with ", params$threads, " threads using the reference annotation ", params$annotation_name, ". ",
+      "Known splice sites were extracted from the annotation file and provided to HISAT2 to guide spliced alignment. ",
+      "Output alignments were converted to sorted BAM format using SAMtools [@samtools_cite].\n", sep = "")
+} else if (params$algorithm == "salmon") {
+  cat("Transcript-level quantification was performed using Salmon v1.5.2 [@salmon_cite] in quasi-mapping mode (pseudo-alignment). ",
+      "Salmon was run with ", params$threads, " threads against a transcriptome index built from the ", params$genome_name, " reference genome ",
+      "and the ", params$annotation_name, " annotation. ",
+      "Salmon employs a lightweight mapping algorithm that does not produce traditional genome alignments, ",
+      "instead directly estimating transcript abundances using an expectation-maximization algorithm with GC bias and sequence-specific bias correction enabled.\n", sep = "")
+} else if (params$algorithm == "bwa") {
+  cat("Reads were aligned to the ", params$genome_name, " reference genome using BWA-MEM v0.7.17 [@bwa_cite]. ",
+      "BWA-MEM was selected for its suitability in aligning reads with potential back-splice junctions for circular RNA detection. ",
+      "The alignment was performed with ", params$threads, " threads. ",
+      "Output alignments were converted to sorted BAM format using SAMtools [@samtools_cite].\n", sep = "")
+}
+```
+
+### Read Quantification
+
+```{r counting_methods, echo=TRUE, results='asis'}
+# Generate quantification methods text based on the counting algorithm used
+if (params$counting_algorithm == "featurecounts") {
+  cat("Gene-level read counts were obtained using featureCounts from the Subread package v2.0.3 [@featurecounts_cite; @subread_cite]. ",
+      "Reads were assigned to genomic features based on the ", params$annotation_name, " annotation in GTF format. ",
+      "featureCounts was run with ", params$threads, " threads. ",
+      "Multi-mapping reads were not counted, and reads were required to have a minimum mapping quality of 10. ",
+      "Only reads overlapping exonic regions were counted, with a minimum overlap of 1 bp.\n", sep = "")
+} else if (params$counting_algorithm == "htseq") {
+  cat("Gene-level read counts were obtained using HTSeq v0.13.5 [@htseq_cite]. ",
+      "Reads were assigned to features based on the ", params$annotation_name, " annotation. ",
+      "The union mode was used for handling reads overlapping multiple features. ",
+      "Reads with a mapping quality below 10 were excluded from counting.\n", sep = "")
+} else if (params$counting_algorithm == "salmon") {
+  cat("Transcript-level abundance estimates were obtained directly from Salmon [@salmon_cite] as described above. ",
+      "Transcript-per-million (TPM) and estimated read counts were computed using Salmon's variational Bayesian EM algorithm. ",
+      "Gene-level counts were derived by aggregating transcript-level estimates.\n", sep = "")
+} else if (params$counting_algorithm == "stringtie") {
+  cat("Transcript assembly and quantification were performed using StringTie v2.1.7 [@stringtie_cite]. ",
+      "StringTie was run with the ", params$annotation_name, " reference annotation to guide transcript assembly. ",
+      "The algorithm estimated transcript abundances as FPKM and TPM values, ",
+      "and gene-level count matrices were extracted for downstream differential expression analysis using the prepDE.py script provided with StringTie.\n", sep = "")
+}
+```
+
+`r if(exists("params") && !is.null(params$de_algorithm) && params$de_algorithm != "none") "### Differential Expression Analysis"`
+
+```{r de_methods, echo=TRUE, results='asis'}
+# Generate differential expression methods text based on DE algorithm
+if (!is.null(params$de_algorithm) && params$de_algorithm != "none") {
+  if (params$de_algorithm == "deseq2") {
+    cat("Differential expression analysis was performed using DESeq2 v1.34.0 [@deseq2_cite]. ",
+        "Raw read counts were normalized using the median-of-ratios method implemented in DESeq2. ",
+        "Dispersion estimates were obtained using the default shrinkage estimator. ",
+        "A negative binomial generalized linear model was fitted for each gene, ",
+        "and the Wald test was used to test for differential expression. ",
+        "P-values were adjusted for multiple testing using the Benjamini-Hochberg procedure. ",
+        "Genes with an adjusted p-value < 0.05 and an absolute log2 fold change > 1 were considered significantly differentially expressed.\n", sep = "")
+  } else if (params$de_algorithm == "edger") {
+    cat("Differential expression analysis was performed using edgeR v3.36.0 [@edger_cite]. ",
+        "Raw read counts were normalized using the trimmed mean of M-values (TMM) method. ",
+        "Dispersion was estimated using the Cox-Reid profile-adjusted likelihood method. ",
+        "A negative binomial generalized log-linear model was fitted using the quasi-likelihood framework, ",
+        "and the quasi-likelihood F-test was used to identify differentially expressed genes. ",
+        "P-values were adjusted for multiple testing using the Benjamini-Hochberg procedure. ",
+        "Genes with an adjusted p-value < 0.05 and an absolute log2 fold change > 1 were considered significantly differentially expressed.\n", sep = "")
+  } else if (params$de_algorithm == "limma_voom") {
+    cat("Differential expression analysis was performed using the limma-voom pipeline [@limma_voom_cite; @voom_cite]. ",
+        "Raw counts were first transformed using the voom method, which estimates the mean-variance relationship ",
+        "and generates precision weights for each observation. ",
+        "TMM normalization was applied prior to voom transformation. ",
+        "A linear model was fitted for each gene, and empirical Bayes moderation of standard errors was applied ",
+        "using the eBayes function. ",
+        "P-values were adjusted for multiple testing using the Benjamini-Hochberg procedure. ",
+        "Genes with an adjusted p-value < 0.05 and an absolute log2 fold change > 1 were considered significantly differentially expressed.\n", sep = "")
+  }
+}
+```
+
+`r if(!is.null(params$pathway_analysis) && params$pathway_analysis) "### Pathway Analysis"`
+
+```{r pathway_methods, echo=TRUE, results='asis'}
+# Generate pathway analysis methods text
+if (!is.null(params$pathway_analysis) && params$pathway_analysis) {
+  cat("Pathway analysis was performed using the MITHrIL2 algorithm [@mithril2_cite; @mithril2_method_cite]. ",
+      "Pathway topologies were obtained from the Kyoto Encyclopedia of Genes and Genomes (KEGG) database. ",
+      "MITHrIL2 extends standard pathway analysis by incorporating post-transcriptional regulatory interactions, ",
+      "including microRNA-mediated regulation, to improve the accuracy of pathway impact assessment. ",
+      "Pathways with an adjusted p-value < 0.05 were considered significantly impacted.\n", sep = "")
+}
+```
+
+`r if(!is.null(params$circ_rna_detection) && params$circ_rna_detection) "### Circular RNA Detection"`
+
+```{r circrna_methods, echo=TRUE, results='asis'}
+# Generate circular RNA detection methods text
+if (!is.null(params$circ_rna_detection) && params$circ_rna_detection) {
+  if (!is.null(params$circ_algorithm) && params$circ_algorithm == "ciriquant") {
+    cat("Circular RNA detection and quantification were performed using CIRIquant v1.1.2 [@ciriquant_cite], ",
+        "which integrates CIRI2 [@ciri2_cite] for back-splice junction identification with pseudo-alignment for accurate circRNA quantification. ",
+        "Reads were first aligned to the ", params$genome_name, " reference genome using BWA-MEM [@bwa_cite] ",
+        "and HISAT2 [@hisat2_cite] to enable both back-splice junction detection and linear RNA quantification. ",
+        "CIRIquant employs a combination of de novo and annotation-assisted approaches to identify and quantify circular RNAs. ",
+        "CircRNAs supported by at least 2 back-splice junction reads were retained for downstream analysis.\n", sep = "")
+  } else {
+    cat("Circular RNA detection was performed using CIRI2 v2.0.6 [@ciri2_cite]. ",
+        "Reads were aligned to the ", params$genome_name, " reference genome using BWA-MEM [@bwa_cite] to identify back-splice junctions. ",
+        "CIRI2 uses a multiple-seed matching strategy to scan SAM alignment files for paired chiastic clipping (PCC) signals, ",
+        "followed by filtering based on GT-AG splicing signals and junction read pairing. ",
+        "The ", params$annotation_name, " annotation was used to annotate detected circular RNAs. ",
+        "CircRNAs supported by at least 2 back-splice junction reads were retained for downstream analysis.\n", sep = "")
+  }
+}
+```
+
+### Computational Environment
+
+```{r compute_methods, echo=TRUE, results='asis'}
+# Document computational resources used
+cat("All analyses were performed using ", params$threads, " CPU threads",
+    if (!is.null(params$memory_gb)) paste0(" with ", params$memory_gb, " GB of allocated memory") else "",
+    ". The pipeline was executed within the RNAdetector containerized environment to ensure reproducibility.\n", sep = "")
+```

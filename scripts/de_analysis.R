@@ -174,7 +174,54 @@ suppressWarnings({
     export.counts.table = TRUE,
     out.list = TRUE
   )
-  save(source.data, meta, samples.list, contrasts.list, 
+  save(source.data, meta, samples.list, contrasts.list,
        file = paste0(config$output.directory, "/data/analysis.RData"))
+})
+
+# Generate enhanced analysis report with Materials & Methods
+tryCatch({
+  report_template <- file.path(dirname(config$output.directory), "../../scripts/resources/reports/analysis_report.Rmd")
+  # Fall back to default template path inside the container
+  if (!file.exists(report_template)) {
+    report_template <- "/rnadetector/scripts/resources/reports/analysis_report.Rmd"
+  }
+  if (file.exists(report_template)) {
+    references_bib <- file.path(dirname(report_template), "references.bib")
+    methods_rmd <- file.path(dirname(report_template), "materials_methods.Rmd")
+
+    # Copy bibliography to output directory
+    if (file.exists(references_bib)) {
+      file.copy(references_bib, file.path(config$output.directory, "references.bib"), overwrite = TRUE)
+    }
+    if (file.exists(methods_rmd)) {
+      file.copy(methods_rmd, file.path(config$output.directory, "materials_methods.Rmd"), overwrite = TRUE)
+    }
+
+    rmarkdown::render(
+      input = report_template,
+      output_file = file.path(config$output.directory, "analysis_report.html"),
+      output_dir = config$output.directory,
+      params = list(
+        title = "Differential Expression Analysis Report",
+        pipeline_version = "2.0",
+        analysis_type = "diff_expr",
+        de_method = paste(stats.algo, collapse = ", "),
+        norm_method = norm.algo,
+        p_cutoff = pcut,
+        adjust_method = check.vector(params$adjust.method, "qvalue"),
+        num_samples = nrow(descriptions),
+        num_contrasts = length(contrasts.list),
+        contrasts = paste(contrasts.list, collapse = "; "),
+        conditions = paste(names(samples.list), collapse = ", "),
+        threads = check.vector(params$num.cores, 1),
+        output_dir = config$output.directory
+      ),
+      envir = new.env(parent = globalenv()),
+      quiet = TRUE
+    )
+    cat("Enhanced analysis report generated successfully.\n")
+  }
+}, error = function(e) {
+  cat(paste0("Warning: Could not generate enhanced report: ", e$message, "\n"))
 })
 

@@ -76,6 +76,12 @@ if [[ "$CLOUD_ENV" == "true" ]]; then
       php /rnadetector/ws/artisan first:boot
   fi
 
+  # Auto-install reference genome packages if configured
+  if [ -n "$AUTO_INSTALL_PACKAGES" ]; then
+    echo "Auto-installing reference packages: $AUTO_INSTALL_PACKAGES"
+    php /rnadetector/ws/artisan packages:auto-install --packages="$AUTO_INSTALL_PACKAGES" || echo "Some packages failed to install"
+  fi
+
 else
   [ ! -f "/rnadetector/ws/storage/app/version_number" ] && [ -d "$MYSQL_DATA_DIR" ] && (rm -f $MYSQL_DATA_DIR/ib_logfile* || echo "Nothing to remove")
   create_data_dir

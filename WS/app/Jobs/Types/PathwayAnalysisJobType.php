@@ -42,6 +42,13 @@ class PathwayAnalysisJobType extends AbstractJob
                 'p_cutoff'  => 'a p-value cutoff for exporting significantly impacted pathways (default: 0.05)',
                 'p_use_fdr' => 'boolean indicating whether p-value cutoff is applied to FDR p-values (default: TRUE)',
             ],
+            'go_enrichment' => [
+                'enabled'   => 'Enable GO term enrichment analysis (default: true)',
+                'ontology'  => 'GO ontology: BP, MF, CC, or ALL (default: ALL)',
+            ],
+            'gsea' => [
+                'enabled'   => 'Enable Gene Set Enrichment Analysis (default: true)',
+            ],
         ];
     }
 
@@ -82,10 +89,15 @@ class PathwayAnalysisJobType extends AbstractJob
             'degs.p_cutoff'      => ['filled', 'numeric', 'min:0', 'max:1'],
             'degs.p_use_fdr'     => ['filled', 'boolean'],
             'degs.lfc_threshold' => ['filled', 'numeric'],
-            'pathways'           => ['filled', 'array'],
-            'pathways.organism'  => ['filled', Rule::in(self::VALID_ORGANISMS)],
-            'pathways.p_cutoff'  => ['filled', 'numeric', 'min:0', 'max:1'],
-            'pathways.p_use_fdr' => ['filled', 'boolean'],
+            'pathways'               => ['filled', 'array'],
+            'pathways.organism'      => ['filled', Rule::in(self::VALID_ORGANISMS)],
+            'pathways.p_cutoff'      => ['filled', 'numeric', 'min:0', 'max:1'],
+            'pathways.p_use_fdr'     => ['filled', 'boolean'],
+            'go_enrichment'          => ['filled', 'array'],
+            'go_enrichment.enabled'  => ['filled', 'boolean'],
+            'go_enrichment.ontology' => ['filled', Rule::in(['BP', 'MF', 'CC', 'ALL'])],
+            'gsea'                   => ['filled', 'array'],
+            'gsea.enabled'           => ['filled', 'boolean'],
         ];
     }
 
@@ -146,6 +158,12 @@ class PathwayAnalysisJobType extends AbstractJob
         if (!$pathwayParameters['p_use_fdr']) {
             $command[] = '--path-no-fdr';
         }
+        if ($this->getParameter('go_enrichment.enabled', true)) {
+            $command[] = '--enable-go';
+        }
+        if ($this->getParameter('gsea.enabled', true)) {
+            $command[] = '--enable-gsea';
+        }
         AbstractJob::runCommand(
             $command,
             $this->model->getAbsoluteJobDirectory(),
@@ -179,6 +197,14 @@ class PathwayAnalysisJobType extends AbstractJob
             ]
         );
         $this->model->save();
+        // Check for enhanced pathway analysis report
+        $enhancedReportPath = $pathReportDirectory . '/pathway_analysis_report.html';
+        $enhancedReportAbsolute = $this->model->absoluteJobPath($enhancedReportPath);
+        if (file_exists($enhancedReportAbsolute)) {
+            $enhancedReportUrl = \Storage::disk('public')->url($enhancedReportPath);
+            $this->setOutput('enhancedReportFile', ['path' => $enhancedReportPath, 'url' => $enhancedReportUrl]);
+            $this->model->save();
+        }
     }
 
     /**

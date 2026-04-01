@@ -588,6 +588,14 @@ class DiffExprAnalysisJobType extends AbstractJob
             ]
         );
         $this->model->save();
+        // Check for enhanced analysis report
+        $enhancedReportPath = $degReportDirectory . '/analysis_report.html';
+        $enhancedReportAbsolute = $this->model->absoluteJobPath($enhancedReportPath);
+        if (file_exists($enhancedReportAbsolute)) {
+            $enhancedReportUrl = \Storage::disk('public')->url($enhancedReportPath);
+            $this->setOutput('enhancedReportFile', ['path' => $enhancedReportPath, 'url' => $enhancedReportUrl]);
+            $this->model->save();
+        }
     }
 
     /**

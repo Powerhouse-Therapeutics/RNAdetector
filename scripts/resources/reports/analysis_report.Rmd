@@ -1,0 +1,265 @@
+---
+title: "`r params$title`"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+params:
+  title: "RNAdetector Analysis Report"
+  pipeline_version: "2.0"
+  analysis_type: "long_rna"
+  algorithm: "star"
+  counting_algorithm: "featurecounts"
+  de_algorithm: "deseq2"
+  genome_name: "Human (hg38)"
+  annotation_name: "GENCODE v38"
+  threads: 4
+  memory_gb: 8
+  trim_enabled: true
+  trim_quality: 20
+  trim_length: 50
+  output_dir: "."
+  job_name: "RNAdetector_analysis"
+  input_files: ""
+  pathway_analysis: false
+  circ_rna_detection: false
+  circ_algorithm: "ciri2"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    theme: darkly
+    highlight: monokai
+    code_folding: show
+    self_contained: true
+    number_sections: true
+bibliography: references.bib
+csl: nature.csl
+---
+
+```{css custom-dark-theme, echo=TRUE}
+/* Custom CSS for enhanced dark theme readability */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.7;
+}
+body p {
+  text-align: justify;
+}
+table {
+  width: 100%;
+  margin-bottom: 1em;
+}
+.table-striped > tbody > tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+pre {
+  border: 1px solid #444;
+}
+```
+
+```{r setup, echo=TRUE}
+# Load required libraries
+suppressPackageStartupMessages({
+  library(knitr)
+  library(DT)
+})
+
+# Set global chunk options: all code is displayed with echo=TRUE
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6,
+  fig.align = "center"
+)
+```
+
+# Analysis Summary {.tabset}
+
+## Pipeline Parameters
+
+```{r parameters-table, echo=TRUE}
+# Build a summary table of all analysis parameters used in this run
+param_df <- data.frame(
+  Parameter = c(
+    "Pipeline Version",
+    "Analysis Type",
+    "Job Name",
+    "Alignment Algorithm",
+    "Counting Algorithm",
+    "DE Algorithm",
+    "Reference Genome",
+    "Annotation",
+    "Threads",
+    "Memory (GB)",
+    "Trimming Enabled",
+    "Trim Quality Threshold",
+    "Trim Minimum Length"
+  ),
+  Value = c(
+    params$pipeline_version,
+    params$analysis_type,
+    params$job_name,
+    params$algorithm,
+    params$counting_algorithm,
+    ifelse(is.null(params$de_algorithm), "none", params$de_algorithm),
+    params$genome_name,
+    params$annotation_name,
+    params$threads,
+    ifelse(is.null(params$memory_gb), "N/A", params$memory_gb),
+    ifelse(params$trim_enabled, "Yes", "No"),
+    ifelse(params$trim_enabled, params$trim_quality, "N/A"),
+    ifelse(params$trim_enabled, params$trim_length, "N/A")
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Display the parameters table
+kable(param_df, format = "html", caption = "Analysis Parameters") |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                            full_width = FALSE)
+```
+
+## Input Files
+
+```{r input-files, echo=TRUE}
+# List the input files used in this analysis
+if (params$input_files != "") {
+  input_list <- unlist(strsplit(params$input_files, ","))
+  cat("**Number of input files:**", length(input_list), "\n\n")
+  for (f in input_list) {
+    cat("-", trimws(f), "\n")
+  }
+} else {
+  cat("No input files specified in parameters.\n")
+}
+```
+
+# Materials and Methods
+
+```{r materials-methods, child='materials_methods.Rmd', echo=TRUE}
+# The Materials and Methods section is generated from a parameterized child document.
+# This child document dynamically constructs publication-ready text
+# based on the analysis parameters (alignment tool, counting method, DE method, etc.).
+```
+
+# Quality Control
+
+```{r qc-section, echo=TRUE}
+# Quality control plots and metrics placeholder.
+# This section is populated with QC data when available from the pipeline output.
+cat("Quality control metrics will be displayed here when QC data is available.\n")
+cat("Typical QC metrics include:\n")
+cat("- Per-base sequence quality scores\n")
+cat("- Read length distribution\n")
+cat("- GC content distribution\n")
+cat("- Adapter contamination levels\n")
+cat("- Alignment rate statistics\n")
+```
+
+```{r qc-alignment-stats, echo=TRUE}
+# Attempt to load alignment statistics if available
+alignment_stats_file <- file.path(params$output_dir, "alignment_stats.txt")
+if (file.exists(alignment_stats_file)) {
+  alignment_stats <- read.delim(alignment_stats_file, header = TRUE)
+  kable(alignment_stats, format = "html", caption = "Alignment Statistics") |>
+    kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+} else {
+  cat("Alignment statistics file not found at:", alignment_stats_file, "\n")
+}
+```
+
+# Results
+
+```{r results-section, echo=TRUE}
+# Results placeholder section.
+# Specific report types (long_rna_report.Rmd, small_rna_report.Rmd, circ_rna_report.Rmd)
+# provide detailed results tailored to the analysis type.
+cat("Detailed results are provided in the analysis-specific report sections.\n")
+cat("Analysis type:", params$analysis_type, "\n")
+```
+
+# Software Versions
+
+```{r software-versions, echo=TRUE}
+# Compile a table of software tools and versions used in this analysis
+software_df <- data.frame(
+  Software = c(
+    "RNAdetector",
+    "R",
+    "Bioconductor"
+  ),
+  Version = c(
+    params$pipeline_version,
+    paste(R.version$major, R.version$minor, sep = "."),
+    as.character(BiocManager::version())
+  ),
+  Reference = c(
+    "Alaimo et al., 2020",
+    "R Core Team, 2023",
+    "Huber et al., 2015"
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Add alignment tool version
+if (params$algorithm == "star") {
+  software_df <- rbind(software_df, data.frame(
+    Software = "STAR", Version = "2.7.9a", Reference = "Dobin et al., 2013"))
+} else if (params$algorithm == "hisat2") {
+  software_df <- rbind(software_df, data.frame(
+    Software = "HISAT2", Version = "2.2.1", Reference = "Kim et al., 2019"))
+} else if (params$algorithm == "salmon") {
+  software_df <- rbind(software_df, data.frame(
+    Software = "Salmon", Version = "1.5.2", Reference = "Patro et al., 2017"))
+} else if (params$algorithm == "bwa") {
+  software_df <- rbind(software_df, data.frame(
+    Software = "BWA", Version = "0.7.17", Reference = "Li & Durbin, 2009"))
+}
+
+# Add counting tool version
+if (params$counting_algorithm == "featurecounts") {
+  software_df <- rbind(software_df, data.frame(
+    Software = "featureCounts (Subread)", Version = "2.0.3", Reference = "Liao et al., 2014"))
+} else if (params$counting_algorithm == "htseq") {
+  software_df <- rbind(software_df, data.frame(
+    Software = "HTSeq", Version = "0.13.5", Reference = "Anders et al., 2015"))
+} else if (params$counting_algorithm == "stringtie") {
+  software_df <- rbind(software_df, data.frame(
+    Software = "StringTie", Version = "2.1.7", Reference = "Pertea et al., 2015"))
+}
+
+# Add DE tool version
+if (!is.null(params$de_algorithm) && params$de_algorithm != "none") {
+  if (params$de_algorithm == "deseq2") {
+    software_df <- rbind(software_df, data.frame(
+      Software = "DESeq2", Version = "1.34.0", Reference = "Love et al., 2014"))
+  } else if (params$de_algorithm == "edger") {
+    software_df <- rbind(software_df, data.frame(
+      Software = "edgeR", Version = "3.36.0", Reference = "Robinson et al., 2010"))
+  } else if (params$de_algorithm == "limma_voom") {
+    software_df <- rbind(software_df, data.frame(
+      Software = "limma-voom", Version = "3.50.0", Reference = "Ritchie et al., 2015"))
+  }
+}
+
+# Add trimming tool if enabled
+if (params$trim_enabled) {
+  software_df <- rbind(software_df, data.frame(
+    Software = "Trim Galore", Version = "0.6.6", Reference = "Krueger, 2015"))
+}
+
+# Display the software versions table
+kable(software_df, format = "html", caption = "Software Versions Used in This Analysis") |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                            full_width = FALSE)
+```
+
+# Session Information
+
+```{r session-info, echo=TRUE}
+# Print the full R session information for reproducibility
+sessionInfo()
+```
+
+# References

@@ -7,6 +7,7 @@
 
 namespace App\Models;
 
+use App\Utils\JwtUtil;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -56,6 +57,35 @@ class User extends Authenticatable
     public function jobs(): HasMany
     {
         return $this->hasMany(Job::class, 'user_id', 'id');
+    }
+
+    /**
+     * Generate a JWT access token for this user.
+     *
+     * @param int $ttl Time to live in seconds (default 3600 = 1 hour)
+     * @return string
+     */
+    public function generateJwtToken(int $ttl = 3600): string
+    {
+        return JwtUtil::encode([
+            'sub'   => $this->id,
+            'email' => $this->email,
+            'admin' => $this->admin,
+        ], JwtUtil::getSecret(), $ttl);
+    }
+
+    /**
+     * Generate a JWT refresh token for this user.
+     *
+     * @param int $ttl Time to live in seconds (default 604800 = 7 days)
+     * @return string
+     */
+    public function generateRefreshToken(int $ttl = 604800): string
+    {
+        return JwtUtil::encode([
+            'sub'  => $this->id,
+            'type' => 'refresh',
+        ], JwtUtil::getSecret(), $ttl);
     }
 
     /**

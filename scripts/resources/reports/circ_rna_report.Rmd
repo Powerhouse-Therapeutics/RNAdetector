@@ -1,0 +1,401 @@
+---
+title: "`r params$title`"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+params:
+  title: "RNAdetector Circular RNA Analysis Report"
+  pipeline_version: "2.0"
+  analysis_type: "circ_rna"
+  algorithm: "bwa"
+  counting_algorithm: "ciri2"
+  de_algorithm: "none"
+  genome_name: "Human (hg38)"
+  annotation_name: "GENCODE v38"
+  threads: 4
+  memory_gb: 8
+  trim_enabled: true
+  trim_quality: 20
+  trim_length: 50
+  output_dir: "."
+  job_name: "circ_rna_analysis"
+  input_files: ""
+  pathway_analysis: false
+  circ_rna_detection: true
+  circ_algorithm: "ciri2"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    theme: darkly
+    highlight: monokai
+    code_folding: show
+    self_contained: true
+    number_sections: true
+bibliography: references.bib
+csl: nature.csl
+---
+
+```{css custom-dark-theme, echo=TRUE}
+/* Custom CSS for dark theme report styling */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.7;
+}
+body p {
+  text-align: justify;
+}
+.table-striped > tbody > tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+pre {
+  border: 1px solid #444;
+}
+```
+
+```{r setup, echo=TRUE}
+# Load required libraries for circular RNA analysis reporting
+suppressPackageStartupMessages({
+  library(knitr)
+  library(ggplot2)
+  library(DT)
+})
+
+# Set global chunk options: all code visible
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6,
+  fig.align = "center"
+)
+
+# Set ggplot2 theme for dark background reports
+theme_dark_report <- theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "#222222", color = NA),
+    panel.background = element_rect(fill = "#2d2d2d", color = NA),
+    text = element_text(color = "#e0e0e0"),
+    axis.text = element_text(color = "#cccccc"),
+    panel.grid.major = element_line(color = "#444444"),
+    panel.grid.minor = element_line(color = "#333333"),
+    legend.background = element_rect(fill = "#222222"),
+    legend.text = element_text(color = "#e0e0e0"),
+    plot.title = element_text(color = "#ffffff", size = 14, face = "bold"),
+    plot.subtitle = element_text(color = "#bbbbbb")
+  )
+```
+
+# Analysis Overview
+
+```{r analysis-overview, echo=TRUE}
+# Display summary of the circular RNA analysis parameters
+cat("**Job Name:**", params$job_name, "\n\n")
+cat("**Analysis Type:** Circular RNA Detection\n\n")
+cat("**Reference Genome:**", params$genome_name, "\n\n")
+cat("**Annotation:**", params$annotation_name, "\n\n")
+cat("**Detection Algorithm:**", params$circ_algorithm, "\n\n")
+cat("**Alignment Algorithm:**", params$algorithm, "\n\n")
+cat("**Pipeline Version:**", params$pipeline_version, "\n\n")
+```
+
+# Materials and Methods
+
+```{r materials-methods, child='materials_methods.Rmd', echo=TRUE}
+# Include the shared Materials and Methods child document.
+# This generates publication-ready methods text covering circRNA detection workflow.
+```
+
+# Junction Read Statistics
+
+```{r load-ciri-results, echo=TRUE}
+# Load CIRI2 or CIRIquant output files from the pipeline
+ciri_file <- file.path(params$output_dir, "ciri_output.tsv")
+ciri_file_alt <- file.path(params$output_dir, "ciri2_output.tsv")
+ciriquant_file <- file.path(params$output_dir, "ciriquant_output.tsv")
+
+circ_data <- NULL
+data_source <- "none"
+
+# Try CIRIquant first, then CIRI2
+for (candidate in c(ciriquant_file, ciri_file, ciri_file_alt)) {
+  if (file.exists(candidate)) {
+    circ_data <- read.delim(candidate, header = TRUE, stringsAsFactors = FALSE, comment.char = "#")
+    data_source <- ifelse(grepl("ciriquant", candidate), "CIRIquant", "CIRI2")
+    cat("Loaded", data_source, "results:", nrow(circ_data), "circular RNAs detected\n")
+    break
+  }
+}
+
+if (is.null(circ_data)) {
+  cat("CircRNA detection output files not found in output directory.\n")
+  cat("Searched locations:\n")
+  cat("-", ciriquant_file, "\n")
+  cat("-", ciri_file, "\n")
+  cat("-", ciri_file_alt, "\n")
+}
+```
+
+```{r junction-read-summary, echo=TRUE}
+# Summarize back-splice junction (BSJ) read counts
+if (!is.null(circ_data)) {
+  # Identify the junction read count column
+  junc_col <- grep("junction|bsj|BSJ|junc_reads|junction_reads", colnames(circ_data),
+                   value = TRUE, ignore.case = TRUE)[1]
+
+  if (!is.na(junc_col)) {
+    junc_counts <- as.numeric(circ_data[[junc_col]])
+
+    cat("### Back-Splice Junction (BSJ) Read Summary\n\n")
+    cat("**Total circRNAs detected:**", nrow(circ_data), "\n\n")
+    cat("**Total BSJ reads:**", sum(junc_counts, na.rm = TRUE), "\n\n")
+    cat("**Mean BSJ reads per circRNA:**", round(mean(junc_counts, na.rm = TRUE), 2), "\n\n")
+    cat("**Median BSJ reads per circRNA:**", median(junc_counts, na.rm = TRUE), "\n\n")
+    cat("**Max BSJ reads for a single circRNA:**", max(junc_counts, na.rm = TRUE), "\n\n")
+    cat("**CircRNAs with >= 2 BSJ reads:**", sum(junc_counts >= 2, na.rm = TRUE), "\n\n")
+    cat("**CircRNAs with >= 5 BSJ reads:**", sum(junc_counts >= 5, na.rm = TRUE), "\n\n")
+    cat("**CircRNAs with >= 10 BSJ reads:**", sum(junc_counts >= 10, na.rm = TRUE), "\n\n")
+  }
+}
+```
+
+```{r junction-read-distribution, echo=TRUE, fig.cap="Distribution of back-splice junction (BSJ) read counts across all detected circular RNAs. Most circRNAs are supported by relatively few junction reads."}
+# Plot the distribution of BSJ read counts
+if (!is.null(circ_data) && exists("junc_col") && !is.na(junc_col)) {
+  junc_df <- data.frame(BSJ_Reads = junc_counts)
+
+  ggplot(junc_df, aes(x = BSJ_Reads)) +
+    geom_histogram(fill = "#4fc3f7", color = "#333333", bins = 50) +
+    scale_x_log10() +
+    labs(
+      title = "Distribution of Back-Splice Junction Reads",
+      subtitle = paste("Total circRNAs:", nrow(circ_data)),
+      x = "BSJ Read Count (log10 scale)",
+      y = "Number of CircRNAs"
+    ) +
+    theme_dark_report
+}
+```
+
+# CircRNA Detection Summary
+
+## Genomic Distribution
+
+```{r genomic-distribution, echo=TRUE, fig.cap="Chromosomal distribution of detected circular RNAs. CircRNAs are distributed across all chromosomes, with frequency generally correlating with chromosome gene density."}
+# Plot chromosomal distribution of detected circRNAs
+if (!is.null(circ_data)) {
+  chr_col <- grep("chr|chrom|chromosome|Chr", colnames(circ_data),
+                  value = TRUE, ignore.case = TRUE)[1]
+
+  if (!is.na(chr_col)) {
+    chr_counts <- as.data.frame(table(circ_data[[chr_col]]))
+    colnames(chr_counts) <- c("Chromosome", "Count")
+
+    # Order chromosomes naturally
+    chr_order <- c(paste0("chr", 1:22), "chrX", "chrY", "chrM",
+                   as.character(1:22), "X", "Y", "MT")
+    chr_counts$Chromosome <- factor(chr_counts$Chromosome,
+                                     levels = intersect(chr_order, chr_counts$Chromosome))
+    chr_counts <- chr_counts[!is.na(chr_counts$Chromosome), ]
+
+    ggplot(chr_counts, aes(x = Chromosome, y = Count)) +
+      geom_bar(stat = "identity", fill = "#ce93d8", width = 0.7) +
+      labs(
+        title = "Chromosomal Distribution of Circular RNAs",
+        x = "Chromosome",
+        y = "Number of CircRNAs"
+      ) +
+      theme_dark_report +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+}
+```
+
+## CircRNA Type Classification
+
+```{r circrna-type, echo=TRUE, fig.cap="Classification of detected circular RNAs by genomic origin: exonic, intronic, or intergenic."}
+# Classify circRNAs by type if annotation information is available
+if (!is.null(circ_data)) {
+  type_col <- grep("type|circRNA_type|category|annotation", colnames(circ_data),
+                   value = TRUE, ignore.case = TRUE)[1]
+
+  if (!is.na(type_col)) {
+    type_counts <- as.data.frame(table(circ_data[[type_col]]))
+    colnames(type_counts) <- c("Type", "Count")
+    type_counts$Percentage <- round(100 * type_counts$Count / sum(type_counts$Count), 1)
+
+    # Display as table
+    kable(type_counts, format = "html",
+          caption = "CircRNA Classification by Genomic Origin") |>
+      kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                                full_width = FALSE)
+
+    # Pie chart
+    ggplot(type_counts, aes(x = "", y = Count, fill = Type)) +
+      geom_bar(stat = "identity", width = 1) +
+      coord_polar("y", start = 0) +
+      scale_fill_manual(values = c("#4fc3f7", "#81c784", "#ffb74d", "#ce93d8", "#ef5350")) +
+      labs(
+        title = "CircRNA Type Distribution",
+        fill = "Type"
+      ) +
+      theme_dark_report +
+      theme(
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        panel.grid = element_blank()
+      )
+  } else {
+    cat("CircRNA type classification column not found in the results.\n")
+  }
+}
+```
+
+## CircRNA Size Distribution
+
+```{r circrna-size, echo=TRUE, fig.cap="Size distribution of detected circular RNAs (genomic span in base pairs)."}
+# Plot the size distribution of detected circRNAs
+if (!is.null(circ_data)) {
+  start_col <- grep("start|Start|circRNA_start", colnames(circ_data),
+                    value = TRUE, ignore.case = TRUE)[1]
+  end_col <- grep("end|End|circRNA_end", colnames(circ_data),
+                  value = TRUE, ignore.case = TRUE)[1]
+
+  if (!is.na(start_col) && !is.na(end_col)) {
+    circ_sizes <- abs(as.numeric(circ_data[[end_col]]) - as.numeric(circ_data[[start_col]]))
+    size_df <- data.frame(Size = circ_sizes)
+
+    cat("**CircRNA size statistics:**\n\n")
+    cat("- Mean size:", round(mean(circ_sizes, na.rm = TRUE)), "bp\n")
+    cat("- Median size:", median(circ_sizes, na.rm = TRUE), "bp\n")
+    cat("- Min size:", min(circ_sizes, na.rm = TRUE), "bp\n")
+    cat("- Max size:", max(circ_sizes, na.rm = TRUE), "bp\n\n")
+
+    ggplot(size_df, aes(x = Size)) +
+      geom_histogram(fill = "#81c784", color = "#333333", bins = 60) +
+      scale_x_log10(labels = scales::comma) +
+      labs(
+        title = "CircRNA Size Distribution",
+        subtitle = "Genomic span from back-splice donor to acceptor",
+        x = "CircRNA Size (bp, log10 scale)",
+        y = "Number of CircRNAs"
+      ) +
+      theme_dark_report
+  }
+}
+```
+
+## Top Circular RNAs
+
+```{r top-circrnas, echo=TRUE}
+# Display the most abundant circular RNAs ranked by junction read support
+if (!is.null(circ_data) && exists("junc_col") && !is.na(junc_col)) {
+  # Select relevant columns for display
+  display_cols <- c()
+  for (pattern in c("circRNA_ID|circ_id|ID", "chr|chrom", "start|Start",
+                     "end|End", "strand|Strand", junc_col, "gene|Gene|gene_id")) {
+    matched <- grep(pattern, colnames(circ_data), value = TRUE, ignore.case = TRUE)[1]
+    if (!is.na(matched)) display_cols <- c(display_cols, matched)
+  }
+
+  if (length(display_cols) > 0) {
+    top_circ <- circ_data[order(-as.numeric(circ_data[[junc_col]])), display_cols, drop = FALSE]
+    top_circ <- head(top_circ, 50)
+
+    datatable(
+      top_circ,
+      caption = "Top 50 Circular RNAs by Back-Splice Junction Read Count",
+      options = list(
+        pageLength = 20,
+        dom = "ftip",
+        scrollX = TRUE
+      ),
+      rownames = FALSE
+    )
+  }
+} else {
+  cat("CircRNA results table not available for display.\n")
+}
+```
+
+## Host Gene Analysis
+
+```{r host-genes, echo=TRUE, fig.cap="Top 20 host genes producing the most circular RNA isoforms."}
+# Identify host genes producing multiple circRNA isoforms
+if (!is.null(circ_data)) {
+  gene_col <- grep("gene|Gene|gene_id|host_gene|gene_name", colnames(circ_data),
+                   value = TRUE, ignore.case = TRUE)[1]
+
+  if (!is.na(gene_col)) {
+    # Count circRNAs per host gene
+    gene_circ_counts <- as.data.frame(table(circ_data[[gene_col]]))
+    colnames(gene_circ_counts) <- c("Gene", "CircRNA_Count")
+    gene_circ_counts <- gene_circ_counts[order(-gene_circ_counts$CircRNA_Count), ]
+
+    cat("**Total host genes:**", nrow(gene_circ_counts), "\n\n")
+    cat("**Genes with multiple circRNA isoforms:**",
+        sum(gene_circ_counts$CircRNA_Count > 1), "\n\n")
+
+    # Plot top 20 host genes
+    top_genes <- head(gene_circ_counts, 20)
+
+    ggplot(top_genes, aes(x = reorder(Gene, CircRNA_Count), y = CircRNA_Count)) +
+      geom_bar(stat = "identity", fill = "#ffb74d", width = 0.7) +
+      coord_flip() +
+      labs(
+        title = "Top 20 Host Genes by CircRNA Isoform Count",
+        x = "Host Gene",
+        y = "Number of CircRNA Isoforms"
+      ) +
+      theme_dark_report
+  } else {
+    cat("Host gene information not available in the circRNA detection results.\n")
+  }
+}
+```
+
+# Software Versions
+
+```{r software-versions, echo=TRUE}
+# Compile a table of all software tools and their versions
+software_df <- data.frame(
+  Software = c("RNAdetector", "R", "Bioconductor"),
+  Version = c(
+    params$pipeline_version,
+    paste(R.version$major, R.version$minor, sep = "."),
+    as.character(BiocManager::version())
+  ),
+  Reference = c("Alaimo et al., 2020", "R Core Team, 2023", "Huber et al., 2015"),
+  stringsAsFactors = FALSE
+)
+
+# Add circRNA detection tools
+if (params$circ_algorithm == "ciriquant") {
+  software_df <- rbind(software_df, data.frame(Software = "CIRIquant", Version = "1.1.2", Reference = "Zhang et al., 2020"))
+  software_df <- rbind(software_df, data.frame(Software = "CIRI2", Version = "2.0.6", Reference = "Gao et al., 2018"))
+} else {
+  software_df <- rbind(software_df, data.frame(Software = "CIRI2", Version = "2.0.6", Reference = "Gao et al., 2018"))
+}
+
+# Add alignment tools
+if (params$algorithm == "bwa") {
+  software_df <- rbind(software_df, data.frame(Software = "BWA", Version = "0.7.17", Reference = "Li & Durbin, 2009"))
+}
+software_df <- rbind(software_df, data.frame(Software = "SAMtools", Version = "1.13", Reference = "Li et al., 2009"))
+
+if (params$trim_enabled) {
+  software_df <- rbind(software_df, data.frame(Software = "Trim Galore", Version = "0.6.6", Reference = "Krueger, 2015"))
+}
+
+kable(software_df, format = "html", caption = "Software Versions") |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+# Session Information
+
+```{r session-info, echo=TRUE}
+# Print full R session information for complete reproducibility
+sessionInfo()
+```
+
+# References

@@ -37,6 +37,8 @@ trait HasCommonParameters
                 'length'           => 'Minimal reads length (Default 14)',
                 'custom_arguments' => 'An optional string containing custom arguments for trim-galore',
             ],
+            'threads'          => 'Number of threads for this analysis (Default 16)',
+            'memory_gb'        => 'Memory limit in GB for this analysis (Default 32)',
         ];
     }
 
@@ -70,6 +72,8 @@ trait HasCommonParameters
             'trimGalore.quality'          => ['filled', 'integer'],
             'trimGalore.length'           => ['filled', 'integer'],
             'trimGalore.custom_arguments' => ['filled', 'string'],
+            'threads'                     => ['filled', 'integer', 'min:1'],
+            'memory_gb'                   => ['filled', 'integer', 'min:1'],
         ];
     }
 

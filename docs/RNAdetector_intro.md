@@ -1,38 +1,62 @@
-# RNAdetector: a user-friendly and stand-alone pipeline for RNA-Seq data analysis
-***RNAdetector*** is a user-friendly pipeline for the analysis of protein-coding genes and ncRNAs from RNA-Seq data
-## Performed analyses
-***RNAdetector*** allows to perform several types of analysis such as:
-- Quantification and normalization
-- Differential expression analysis
-- miRNA-sensitive topological pathway analysis.
+# RNAdetector Introduction
 
-***RNAdetector*** supports several species such as Human, Mouse and Rat that are available for download in our remote repository.
-However, It can be also easily used with any other organism by following the step-by-step procedures detailed in the user interface.
-## Non-coding RNAs analyzed
-In addition to mRNAs, ***RNAdetector*** can also analyze several classes of small and long ncRNAs.
-##### Small non-coding RNAs
-- micro RNAs (miRNAs)
-- PIWI-associated RNAs (piRNAs)
-- tRNA fragments (tRFs)
-- tRNA derived small ncRNAs (tsRNAs)
-##### Long non-coding RNAs
-- long non-coding RNAs (lncRNAs)
-- transcribed UltraConserved Regions (tUCRs)
-- circular RNAs (circRNAs)
+## What is RNAdetector?
 
-## Features
-***RNAdetector*** has several important features such as:
-- Easy installation and dependencies management
-- Cross-platform (Windows Professional, macOS, Ubuntu) 
-- Remotely controllable
-- Completely off line
-- Graphical User Interface (GUI)
-- Graphical reports with the results of the analyses
-## Cite us
-if you use ***RNAdetector*** cite:
-## Contact us 
-[Alessandro La Ferlita](https://www.researchgate.net/profile/Alessandro_La_Ferlita2) (alessandro.laferlita@unict.it)
+RNAdetector is a comprehensive RNA-Seq data analysis platform that provides end-to-end processing from raw FASTQ files to publication-ready results. It runs as a Docker-based server controlled through a modern web interface.
 
-[Salvatore Alaimo](https://www.researchgate.net/profile/Salvatore_Alaimo) (alaimos@dmi.unict.it)
+## Key Capabilities
 
-[Alfredo Pulvirenti](https://www.researchgate.net/profile/Alfredo_Pulvirenti) (alfredo.pulvirenti@unict.it)
+### Analysis Types
+
+| Analysis | Input | Tools | Output |
+|----------|-------|-------|--------|
+| RNA-seq (long RNA) | FASTQ/BAM | STAR, HISAT2, Salmon, featureCounts, HTSeq | Gene/transcript expression counts |
+| Small RNA-seq | FASTQ/BAM | BWA, featureCounts | miRNA, piRNA, snoRNA, tRF counts |
+| Circular RNA | FASTQ/BAM | BWA, CIRI2, CIRIquant | CircRNA detection and quantification |
+| Differential Expression | Count matrices | DESeq2, edgeR, limma-voom | DEG lists, QC plots, HTML reports |
+| Pathway Analysis | DEG results | MITHrIL2, clusterProfiler, fgsea | KEGG pathways, GO terms, GSEA plots |
+
+### Supported RNA Classes
+
+**Protein-coding**: mRNAs
+
+**Small non-coding RNAs**: miRNAs, piRNAs, snoRNAs, tRFs, tsRNAs
+
+**Long non-coding RNAs**: lncRNAs, circRNAs
+
+### Supported Organisms
+
+Pre-built packages available for Human (hg19, hg38) and Mouse (mm10, mm39). Any organism with a sequenced genome can be added by uploading reference files.
+
+## Architecture
+
+RNAdetector uses a client-server architecture:
+
+1. **Server** (Docker container): Runs all bioinformatics tools, manages the database, processes jobs via a queue system
+2. **Web Client** (React SPA): Provides the user interface for configuring and monitoring analyses
+3. **API** (REST + JWT): Connects client to server with secure token-based authentication
+
+## Workflow
+
+1. **Deploy** the Docker container on your server
+2. **Login** to the web interface
+3. **Browse** server files to locate your FASTQ data
+4. **Configure** your analysis (select aligner, genome, parameters, resource allocation)
+5. **Submit** the job to the processing queue
+6. **Monitor** progress in the Jobs dashboard
+7. **Review** results in interactive HTML reports with Materials & Methods
+8. **Download** reports, count tables, and other outputs
+
+## Reports
+
+Every analysis generates comprehensive HTML reports including:
+
+- Publication-ready Materials and Methods text
+- All R code visible and reproducible
+- BibTeX citations for every tool used
+- Interactive plots and filterable data tables
+- Session information for full reproducibility
+
+## Resource Management
+
+The server reports available CPU cores and RAM. The web interface provides interactive sliders to allocate resources per analysis, with color-coded recommendations for each workflow type. Defaults: 16 threads, 32 GB RAM.
