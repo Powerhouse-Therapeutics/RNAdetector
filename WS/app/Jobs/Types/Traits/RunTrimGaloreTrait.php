@@ -86,20 +86,26 @@ trait RunTrimGaloreTrait
             throw new ProcessingJobException('Unable to create trimGalore output folder');
         }
         if ($paired) {
-            $firstBase = self::stripDoubleExt($firstInputFile);
-            $secondBase = self::stripDoubleExt($secondInputFile);
-            $firstOutput = $outputDirectory . '/' . $firstBase . '_val_1.fq';
-            $secondOutput = $outputDirectory . '/' . $secondBase . '_val_2.fq';
-            if (!file_exists($firstOutput) || !file_exists($secondOutput)) {
+            // Find actual output files by pattern - trim_galore naming varies by input extension
+            $val1Files = glob($outputDirectory . '/*_val_1.fq');
+            $val2Files = glob($outputDirectory . '/*_val_2.fq');
+            if (empty($val1Files) || empty($val2Files)) {
+                // Log directory contents for debugging
+                $contents = @scandir($outputDirectory);
+                $model->appendLog('Output directory contents: ' . implode(', ', $contents ?: ['(empty)']));
                 throw new ProcessingJobException('Unable to create output files');
             }
+            $firstOutput = $val1Files[0];
+            $secondOutput = $val2Files[0];
         } else {
-            $firstBase = self::stripDoubleExt($firstInputFile);
-            $firstOutput = $outputDirectory . '/' . $firstBase . '_trimmed.fq';
-            $secondOutput = null;
-            if (!file_exists($firstOutput)) {
+            $trimmedFiles = glob($outputDirectory . '/*_trimmed.fq');
+            if (empty($trimmedFiles)) {
+                $contents = @scandir($outputDirectory);
+                $model->appendLog('Output directory contents: ' . implode(', ', $contents ?: ['(empty)']));
                 throw new ProcessingJobException('Unable to create output files');
             }
+            $firstOutput = $trimmedFiles[0];
+            $secondOutput = null;
         }
         $model->appendLog('Trimming completed');
 
