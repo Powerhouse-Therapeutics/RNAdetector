@@ -459,9 +459,3 @@ Default analysis settings: **16 threads, 32 GB RAM**. The server reports availab
 - **Green** -- Recommended allocation for the workflow
 - **Yellow** -- Acceptable but may be slower or use more resources than ideal
 - **Red** -- Exceeds available capacity; job may fail or cause system instability
-
----
-
-## License
-
-This project is licensed under the MIT License.
