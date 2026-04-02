@@ -361,8 +361,11 @@ export default function AnalysisPage() {
     [allJobs],
   );
 
-  const filteredAnnotations = seqParams.referenceId
-    ? annotations.filter((a) => a.reference_id === seqParams.referenceId)
+  const selectedRefName = seqParams.referenceId
+    ? references.find((r) => r.id === seqParams.referenceId)?.name ?? ''
+    : '';
+  const filteredAnnotations = selectedRefName
+    ? annotations.filter((a) => a.name.startsWith(selectedRefName))
     : annotations;
 
   /* ----- helpers ----- */
