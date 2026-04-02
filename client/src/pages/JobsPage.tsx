@@ -197,7 +197,7 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
         <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', mb: 0.5, display: 'block' }}>
           Log
         </Typography>
-        {loading ? (
+        {loading && !j.log ? (
           <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} />
         ) : j.log ? (
           <Box
@@ -290,8 +290,8 @@ export default function JobsPage() {
   const expandedIdRef = useRef(expandedId);
   expandedIdRef.current = expandedId;
 
-  const loadDetail = useCallback(async (id: number) => {
-    setDetailLoading(true);
+  const loadDetail = useCallback(async (id: number, isInitial = false) => {
+    if (isInitial) setDetailLoading(true);
     try {
       const detail = await fetchJob(id);
       // Only apply if still expanded on the same job
@@ -301,18 +301,18 @@ export default function JobsPage() {
     } catch {
       // Silently ignore; the summary data from the list is still shown
     } finally {
-      setDetailLoading(false);
+      if (isInitial) setDetailLoading(false);
     }
   }, []);
 
   // When expanded job is active, poll its detail every 5s
   useEffect(() => {
     if (expandedId === null) return;
-    loadDetail(expandedId);
+    loadDetail(expandedId, true);
     const expandedJob = jobs.find((j) => j.id === expandedId);
     const isActive = expandedJob && (expandedJob.status === 'processing' || expandedJob.status === 'queued');
     if (!isActive) return;
-    const interval = setInterval(() => loadDetail(expandedId), ACTIVE_POLL_MS);
+    const interval = setInterval(() => loadDetail(expandedId, false), ACTIVE_POLL_MS);
     return () => clearInterval(interval);
   }, [expandedId, jobs, loadDetail]);
 
