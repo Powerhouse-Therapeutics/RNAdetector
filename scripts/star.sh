@@ -67,9 +67,17 @@ if [ -n "$OTHER_ARGS" ]; then
 fi
 
 #### Alignment ####
-echo "Detecting maximum read size"
-MAX_SIZE=$(awk 'BEGIN {max=0} NR%4 == 2 {if (length($0)>max) {max=length($0)}} END {print max - 1}' "$INPUT_1")
-echo "Setting sjdbOverhang to ${MAX_SIZE}."
+# Read sjdbOverhang from the genome index (use value from genome generation)
+GENOME_PARAMS="$REFERENCE_DIR/genomeParameters.txt"
+if [ -f "$GENOME_PARAMS" ]; then
+  SJDB_OVERHANG=$(grep "^sjdbOverhang" "$GENOME_PARAMS" | awk '{print $2}')
+fi
+if [ -z "$SJDB_OVERHANG" ] || [ "$SJDB_OVERHANG" = "0" ]; then
+  # Fallback: detect from reads
+  echo "Detecting maximum read size"
+  SJDB_OVERHANG=$(awk 'BEGIN {max=0} NR%4 == 2 {if (length($0)>max) {max=length($0)}} END {print max - 1}' "$INPUT_1")
+fi
+echo "Using sjdbOverhang=${SJDB_OVERHANG}."
 
 TEMP_DIR="$(dirname "$OUTPUT")/star_tmp/"
 
@@ -84,13 +92,13 @@ fi
 if [ "$PAIRED" = "true" ]; then
   STAR --runThreadN "$THREADS" --runMode alignReads \
     --genomeDir "$REFERENCE_DIR" --sjdbGTFfile "$GTF_FILE" \
-    --sjdbOverhang "$MAX_SIZE" --outSAMtype BAM SortedByCoordinate --outSAMunmapped Within \
+    --sjdbOverhang "$SJDB_OVERHANG" --outSAMtype BAM SortedByCoordinate --outSAMunmapped Within \
     --readFilesIn "$INPUT_1" "$INPUT_2" \
     --outFileNamePrefix "$TEMP_DIR" $MEMORY_ARG $OTHER_ARGS || exit_abnormal "An error occurred during STAR execution!" 9
 else
   STAR --runThreadN "$THREADS" --runMode alignReads \
     --genomeDir "$REFERENCE_DIR" --sjdbGTFfile "$GTF_FILE" \
-    --sjdbOverhang "$MAX_SIZE" --outSAMtype BAM SortedByCoordinate --outSAMunmapped Within \
+    --sjdbOverhang "$SJDB_OVERHANG" --outSAMtype BAM SortedByCoordinate --outSAMunmapped Within \
     --readFilesIn "$INPUT_1" \
     --outFileNamePrefix "$TEMP_DIR" $MEMORY_ARG $OTHER_ARGS || exit_abnormal "An error occurred during STAR execution!" 9
 fi
