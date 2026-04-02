@@ -59,7 +59,7 @@ class JobController extends Controller
                         $builder->where('status', '=', Job::COMPLETED);
                     }
                     /** @var \App\Models\User $user */
-                    $user = \Auth::guard('api')->user();
+                    $user = \Auth::user();
                     if (!$user->admin) {
                         $builder->where('user_id', $user->id);
                     }
@@ -116,7 +116,7 @@ class JobController extends Controller
         $validParameters = $this->validate($request, $parametersValidation);
         $type = $validValues['type'];
         $validParameters = $validParameters['parameters'] ?? [];
-        $userId = \Auth::guard('api')->id();
+        $userId = \Auth::id();
         if (empty($userId)) {
             abort(401, 'Authentication required to create a job.');
         }

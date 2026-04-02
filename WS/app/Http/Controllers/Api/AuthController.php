@@ -153,7 +153,7 @@ class AuthController extends Controller
         ]);
 
         /** @var \App\Models\User $user */
-        $user = Auth::guard('api')->user();
+        $user = Auth::user();
 
         if (!Hash::check($request->input('old_password'), $user->password)) {
             return response()->json(['error' => 'The old password is incorrect.'], 422);
@@ -174,7 +174,7 @@ class AuthController extends Controller
     public function updateProfile(Request $request): JsonResponse
     {
         /** @var \App\Models\User $user */
-        $user = Auth::guard('api')->user();
+        $user = Auth::user();
 
         $request->validate([
             'name'  => 'sometimes|required|string|max:255',

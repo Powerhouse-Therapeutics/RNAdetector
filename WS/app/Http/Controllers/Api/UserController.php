@@ -107,7 +107,7 @@ class UserController extends Controller
             'new_password' => ['filled', 'string', 'min:6', 'alpha_num'],
             'admin'        => ['filled', 'boolean'],
         ];
-        if (Auth::guard('api')->user()->admin) {
+        if (Auth::user()->admin) {
             unset($rules['password']);
         }
         $values = $this->validate($request, $rules);

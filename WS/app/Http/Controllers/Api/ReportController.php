@@ -185,10 +185,7 @@ class ReportController extends Controller
      */
     private function authorizeJob(Job $job): void
     {
-        $user = Auth::guard('api')->user();
-        if (!$user) {
-            $user = Auth::user();
-        }
+        $user = Auth::user();
         if (!$user) {
             abort(401, 'Unauthenticated.');
         }
