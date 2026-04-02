@@ -91,7 +91,15 @@ class Reference extends Model
      */
     public function isAvailableFor(string $algorithm): bool
     {
-        return $this->available_for[$algorithm] ?? false;
+        $availableFor = $this->available_for;
+        // Handle double-encoded JSON (stored as JSON string inside JSON column)
+        if (is_string($availableFor)) {
+            $availableFor = json_decode($availableFor, true);
+        }
+        if (!is_array($availableFor)) {
+            return false;
+        }
+        return !empty($availableFor[$algorithm]);
     }
 
     /**
