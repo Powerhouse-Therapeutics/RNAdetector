@@ -2,7 +2,6 @@
 
 namespace App\Http;
 
-use App\Http\Middleware\AssignGuard;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\CheckForMaintenanceMode;
 use App\Http\Middleware\EncryptCookies;

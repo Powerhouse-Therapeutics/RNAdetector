@@ -52,18 +52,18 @@ if [ -n "$OTHER_ARGS" ]; then
   echo "Processing with custom arguments: \"${OTHER_ARGS}\""
 fi
 
-[ ! -f "$FASTA_FILE.fai" ] && samtools faidx "$FASTA_FILE" && chmod 777 "$FASTA_FILE.fai"
+[ ! -f "$FASTA_FILE.fai" ] && samtools faidx "$FASTA_FILE" && [ -f "$FASTA_FILE.fai" ] && chmod 777 "$FASTA_FILE.fai"
 
 REFERENCE_DIR="${PREFIX_OUTPUT}_star"
 
-[ ! -d "$REFERENCE_DIR" ] && mkdir "$REFERENCE_DIR"
+[ ! -d "$REFERENCE_DIR" ] && mkdir -p "$REFERENCE_DIR"
 
 #### Genome indexing ####
 STAR --runThreadN "$THREADS" \
   --runMode genomeGenerate $OTHER_ARGS \
   --genomeDir "$REFERENCE_DIR" \
-  --genomeFastaFiles "$FASTA_FILE" || (
-  echo "An error occurred during indexing!" && exit 6
-)
+  --genomeFastaFiles "$FASTA_FILE" || {
+  echo "An error occurred during indexing!"; exit 6;
+}
 
-chmod -R 777 "$REFERENCE_DIR"
+[ -d "$REFERENCE_DIR" ] && chmod -R 777 "$REFERENCE_DIR"

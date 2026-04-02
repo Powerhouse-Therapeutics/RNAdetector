@@ -47,7 +47,7 @@ if [ -n "$OTHER_ARGS" ]; then
   echo "Processing with custom arguments: \"${OTHER_ARGS}\""
 fi
 
-[ ! -f "$FASTA_FILE.fai" ] && samtools faidx "$FASTA_FILE" && chmod 777 "$FASTA_FILE.fai"
+[ ! -f "$FASTA_FILE.fai" ] && samtools faidx "$FASTA_FILE" && [ -f "$FASTA_FILE.fai" ] && chmod 777 "$FASTA_FILE.fai"
 
 #### Genome indexing ####
 # shellcheck disable=SC2086

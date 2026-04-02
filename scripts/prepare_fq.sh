@@ -1,6 +1,8 @@
 #!/bin/bash
+set -o pipefail
 
 INPUT="${1}"
+JOBDIR="${2:-$(pwd)}"
 
 if [ -z "$INPUT" ]; then
   echo "Input file is required"
@@ -10,6 +12,16 @@ fi
 if [ ! -f "$INPUT" ]; then
   echo "Input file does not exist."
   exit 2
+fi
+
+# If input is an absolute path outside the job directory, symlink it in
+BASENAME=$(basename "$INPUT")
+if [[ "$INPUT" == /* ]] && [[ "$INPUT" != "$JOBDIR"* ]]; then
+  LINK="$JOBDIR/$BASENAME"
+  if [ ! -e "$LINK" ]; then
+    ln -s "$INPUT" "$LINK" 2>/dev/null || cp "$INPUT" "$LINK"
+  fi
+  INPUT="$LINK"
 fi
 
 MIME=$(file -i -0 "$INPUT" | cut -f 2 -d " " | cut -f 1 -d ";")

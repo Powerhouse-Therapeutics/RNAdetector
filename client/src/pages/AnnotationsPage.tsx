@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, Skeleton,
@@ -12,18 +12,27 @@ export default function AnnotationsPage() {
   const [loading, setLoading] = useState(true);
   const notify = useNotificationStore((s) => s.show);
 
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
+    abortRef.current = new AbortController();
+    const { signal } = abortRef.current;
+
     const load = async () => {
       try {
-        const data = await fetchAnnotations();
-        setAnnotations(data);
-      } catch {
-        notify('Failed to load annotations', 'error');
+        const data = await fetchAnnotations(signal);
+        if (!signal.aborted) {
+          setAnnotations(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        if (!signal.aborted) notify('Failed to load annotations', 'error');
       } finally {
-        setLoading(false);
+        if (!signal.aborted) setLoading(false);
       }
     };
     load();
+
+    return () => { abortRef.current?.abort(); };
   }, [notify]);
 
   return (
@@ -32,7 +41,7 @@ export default function AnnotationsPage() {
         Annotations
       </Typography>
 
-      <TableContainer component={Paper} sx={{ background: 'rgba(17, 24, 39, 0.6)', backdropFilter: 'blur(12px)' }}>
+      <TableContainer component={Paper} sx={{ background: '#161B22' }}>
         <Table>
           <TableHead>
             <TableRow>

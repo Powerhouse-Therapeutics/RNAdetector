@@ -81,13 +81,16 @@ if [ ! -f "$OUTPUT" ]; then
   exit 7
 fi
 
-chmod 777 "$OUTPUT"
+[ -f "$OUTPUT" ] && chmod 777 "$OUTPUT"
 
 if [ -n "$HARMONIZED" ]; then
   CURR_DIR=$(pwd)
   SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
   cd "$CURR_DIR" || exit 9
-  [ -n "$MAP_FILE" ] && [ -f "$MAP_FILE" ] && (Rscript "${SCRIPT_PATH}/harmonize.R" -i "$OUTPUT" -g "$GTF_FILE" -a "featurecounts" -o "$HARMONIZED" -m "$MAP_FILE" || exiterror "Unable to harmonize output file" 9)
-  ([ -z "$MAP_FILE" ] || [ ! -f "$MAP_FILE" ]) && (Rscript "${SCRIPT_PATH}/harmonize.R" -i "$OUTPUT" -g "$GTF_FILE" -a "featurecounts" -o "$HARMONIZED" || exiterror "Unable to harmonize output file" 9)
-  chmod 777 "$HARMONIZED"
+  if [ -n "$MAP_FILE" ] && [ -f "$MAP_FILE" ]; then
+    Rscript "${SCRIPT_PATH}/harmonize.R" -i "$OUTPUT" -g "$GTF_FILE" -a "featurecounts" -o "$HARMONIZED" -m "$MAP_FILE" || exiterror "Unable to harmonize output file" 9
+  else
+    Rscript "${SCRIPT_PATH}/harmonize.R" -i "$OUTPUT" -g "$GTF_FILE" -a "featurecounts" -o "$HARMONIZED" || exiterror "Unable to harmonize output file" 9
+  fi
+  [ -f "$HARMONIZED" ] && chmod 777 "$HARMONIZED"
 fi

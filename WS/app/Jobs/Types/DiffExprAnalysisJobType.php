@@ -306,9 +306,15 @@ class DiffExprAnalysisJobType extends AbstractJob
     {
         $contents = [];
         $groupOutput = $sourceSampleGroup->job_output;
+        if (!is_array($groupOutput) || !isset($groupOutput['metadata']) || !is_array($groupOutput['metadata'])) {
+            throw new ProcessingJobException('Source sample group has no valid metadata output.');
+        }
         foreach ($groupOutput['metadata'] as $m) {
+            if (!is_array($m) || !isset($m['type'], $m['field'])) {
+                continue;
+            }
             if ($m['type'] === 'string') {
-                $contents[$m['field']] = $m['content'];
+                $contents[$m['field']] = isset($m['content']) ? $m['content'] : [];
             } /*else {
                 // unsupported right now
             }*/
@@ -382,6 +388,10 @@ class DiffExprAnalysisJobType extends AbstractJob
         $validContrasts = [];
         $invalid = [];
         foreach ($contrasts as $contrast) {
+            if (!is_array($contrast) || !isset($contrast['case'], $contrast['control'])) {
+                $invalid[] = ['case' => '(malformed)', 'control' => '(malformed)'];
+                continue;
+            }
             $case = $contrast['case'];
             $control = $contrast['control'];
             if (in_array($case, $conditions, true) && in_array($control, $conditions, true)) {
@@ -497,9 +507,23 @@ class DiffExprAnalysisJobType extends AbstractJob
         $degReport = $this->model->absoluteJobPath($degReportDirectory);
         $degReportUrl = \Storage::disk('public')->url($degReportDirectory);
         $dataField = $sampleType === self::VALID_SAMPLE_TYPE[1] ? 'harmonizedTranscriptsFile' : 'harmonizedFile';
+        if (!isset($groupOutput['description']) || !is_array($groupOutput['description']) || !isset($groupOutput['description']['path'])) {
+            throw new ProcessingJobException('Source sample group is missing the description file output.');
+        }
+        if (!isset($groupOutput[$dataField]) || !is_array($groupOutput[$dataField]) || !isset($groupOutput[$dataField]['path'])) {
+            throw new ProcessingJobException('Source sample group is missing the ' . $dataField . ' output.');
+        }
+        $descriptionAbsPath = $sourceSampleGroup->absoluteJobPath($groupOutput['description']['path']);
+        $dataAbsPath = $sourceSampleGroup->absoluteJobPath($groupOutput[$dataField]['path']);
+        if (!file_exists($descriptionAbsPath)) {
+            throw new ProcessingJobException('Description file not found at: ' . $descriptionAbsPath);
+        }
+        if (!file_exists($dataAbsPath)) {
+            throw new ProcessingJobException('Data file not found at: ' . $dataAbsPath);
+        }
         $jsonContent = [
-            'description.file'     => $sourceSampleGroup->absoluteJobPath($groupOutput['description']['path']),
-            'data.file'            => $sourceSampleGroup->absoluteJobPath($groupOutput[$dataField]['path']),
+            'description.file'     => $descriptionAbsPath,
+            'data.file'            => $dataAbsPath,
             'data.type'            => $sampleType,
             'conditions.variables' => $conditionVariables,
             'contrasts'            => $validContrasts,
@@ -524,16 +548,35 @@ class DiffExprAnalysisJobType extends AbstractJob
      */
     public function handle(): void
     {
-        $this->log('Starting diffential expression analysis.');
-        $sourceSampleGroup = Job::whereId($this->getParameter('source_sample_group'))->firstOrFail();
+        $this->log('Starting differential expression analysis.');
+        $sourceSampleGroupId = $this->getParameter('source_sample_group');
+        if (empty($sourceSampleGroupId)) {
+            throw new ProcessingJobException('Source sample group ID is required.');
+        }
+        $sourceSampleGroup = Job::whereId($sourceSampleGroupId)->first();
+        if ($sourceSampleGroup === null) {
+            throw new ProcessingJobException('Source sample group not found (ID: ' . $sourceSampleGroupId . ').');
+        }
         $sampleType = $this->getParameter('sample_type', self::VALID_SAMPLE_TYPE[0]);
+        if (!in_array($sampleType, self::VALID_SAMPLE_TYPE, true)) {
+            throw new ProcessingJobException('Invalid sample type: ' . $sampleType);
+        }
         $conditionVariables = (array)$this->getParameter('condition_variables');
         $contrasts = (array)$this->getParameter('contrasts');
         $parameters = (array)$this->getParameter('parameters');
+        if (empty($conditionVariables)) {
+            throw new ProcessingJobException('At least one condition variable must be specified.');
+        }
+        if (empty($contrasts)) {
+            throw new ProcessingJobException('At least one contrast must be specified.');
+        }
         if ($sourceSampleGroup->job_type !== 'samples_group_job_type') {
             throw new ProcessingJobException('Source sample group error: job type invalid.');
         }
         $groupOutput = $sourceSampleGroup->job_output;
+        if (!is_array($groupOutput) || empty($groupOutput)) {
+            throw new ProcessingJobException('Source sample group has no output data.');
+        }
         if ($sampleType === self::VALID_SAMPLE_TYPE[1] && !isset($groupOutput['harmonizedTranscriptsFile'])) {
             throw new ProcessingJobException('The selected sample group does not support transcripts differential expression analysis.');
         }
@@ -563,7 +606,7 @@ class DiffExprAnalysisJobType extends AbstractJob
                 $this->log($buffer, false);
             }
         );
-        if (!file_exists($degReport) && !is_dir($degReport) && !file_exists($degReport . '/index.html')) {
+        if (!file_exists($degReport) || !is_dir($degReport) || !file_exists($degReport . '/index.html')) {
             throw new ProcessingJobException('Unable to create output report.');
         }
         Utils::recursiveChmod($degReport, 0777);

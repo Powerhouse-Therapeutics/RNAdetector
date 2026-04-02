@@ -10,7 +10,7 @@ export default function useAuth() {
   const login = useCallback(
     async (email: string, password: string, rememberMe = false) => {
       const data = await authApi.login(email, password);
-      storeLogin(data.access_token, data.user, rememberMe);
+      storeLogin(data.access_token, data.user, rememberMe, data.refresh_token ?? null);
     },
     [storeLogin]
   );

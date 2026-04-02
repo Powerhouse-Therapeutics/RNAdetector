@@ -86,15 +86,15 @@ trait RunTrimGaloreTrait
             throw new ProcessingJobException('Unable to create trimGalore output folder');
         }
         if ($paired) {
-            $firstBase = pathinfo($firstInputFile, PATHINFO_FILENAME);
-            $secondBase = pathinfo($secondInputFile, PATHINFO_FILENAME);
+            $firstBase = self::stripDoubleExt($firstInputFile);
+            $secondBase = self::stripDoubleExt($secondInputFile);
             $firstOutput = $outputDirectory . '/' . $firstBase . '_val_1.fq';
             $secondOutput = $outputDirectory . '/' . $secondBase . '_val_2.fq';
             if (!file_exists($firstOutput) || !file_exists($secondOutput)) {
                 throw new ProcessingJobException('Unable to create output files');
             }
         } else {
-            $firstBase = pathinfo($firstInputFile, PATHINFO_FILENAME);
+            $firstBase = self::stripDoubleExt($firstInputFile);
             $firstOutput = $outputDirectory . '/' . $firstBase . '_trimmed.fq';
             $secondOutput = null;
             if (!file_exists($firstOutput)) {
@@ -104,5 +104,17 @@ trait RunTrimGaloreTrait
         $model->appendLog('Trimming completed');
 
         return [$firstOutput, $secondOutput];
+    }
+
+    /**
+     * Strip double extensions like .fastq.gz, .fq.gz to get the base name
+     * that trim_galore uses for output files.
+     */
+    private static function stripDoubleExt(string $filePath): string
+    {
+        $base = basename($filePath);
+        $base = preg_replace('/\.(fastq|fq)\.(gz|bz2)$/i', '', $base);
+        $base = preg_replace('/\.(fastq|fq)$/i', '', $base);
+        return $base;
     }
 }

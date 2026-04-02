@@ -79,7 +79,7 @@ if [ -n "$OTHER_ARGS" ]; then
 fi
 
 #### Alignment ####
-if [ $PAIRED = "true" ]; then
+if [ "$PAIRED" = "true" ]; then
   if [ "$REPAIR" = true ]; then
     if ! bash /opt/bbmap/repair.sh in1="$INPUT_1" in2="$INPUT_2" out1="$INPUT_1.paired.fq" out2="$INPUT_2.paired.fq"; then
       echo "Unable to remove singleton reads using bbmap repair"
@@ -124,4 +124,4 @@ if [ ! -f "$OUTPUT" ]; then
   exit 8
 fi
 
-chmod 777 "$OUTPUT"
+[ -f "$OUTPUT" ] && chmod 777 "$OUTPUT"

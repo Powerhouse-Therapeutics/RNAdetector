@@ -70,7 +70,7 @@ harmonize.ciri <- function (input.file, bedfile, output.file, map.table) {
   if (!is.null(bedfile) && file.exists(bedfile)) {
     g <- GRanges(seqnames = Rle(m$chr), ranges = IRanges(m$start,m$end),strand=m$strand)
     g$id       <- m$id
-    g$gene <- m$gene_id
+    g$gene <- m$name
     gr_obj  <- import(bedfile)
     o <- findOverlaps(g, gr_obj, type = "equal")
     m$id[queryHits(o)] <- gr_obj$name[subjectHits(o)]
@@ -222,10 +222,6 @@ require.txout <- c("salmon", "stringtie")
 
 opt_parser <- OptionParser(option_list=option_list)
 opt <- parse_args(opt_parser)
-
-if (opt$help) {
-  print_help(opt_parser)
-}
 
 if (is.null(opt$input) || !file.exists(opt$input)) {
   print_help(opt_parser)

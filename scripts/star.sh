@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 ##############################################################################
 # Options:
@@ -80,7 +81,7 @@ if [ -n "$MEMORY_LIMIT" ]; then
   MEMORY_ARG="--limitBAMsortRAM $MEMORY_LIMIT"
 fi
 
-if [ $PAIRED = "true" ]; then
+if [ "$PAIRED" = "true" ]; then
   STAR --runThreadN "$THREADS" --runMode alignReads \
     --genomeDir "$REFERENCE_DIR" --sjdbGTFfile "$GTF_FILE" \
     --sjdbOverhang "$MAX_SIZE" --outSAMtype BAM SortedByCoordinate --outSAMunmapped Within \
@@ -102,6 +103,6 @@ mv "$TEMP_DIR/Aligned.sortedByCoord.out.bam" "$OUTPUT" || exit_abnormal "Unable 
 
 [ ! -f "$OUTPUT" ] && exit_abnormal "Unable to find output file!" 12
 
-rm -r "$TEMP_DIR"
+[ -d "$TEMP_DIR" ] && rm -r "$TEMP_DIR"
 
 bash /rnadetector/scripts/prepare_bam.sh -f "$OUTPUT" || exit_abnormal "Unable to prepare BAM file" "$?"

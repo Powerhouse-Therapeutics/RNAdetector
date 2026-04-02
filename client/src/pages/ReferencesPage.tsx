@@ -24,16 +24,15 @@ interface InstallState {
 }
 
 const glassCard = {
-  background: 'rgba(17, 24, 39, 0.6)',
-  backdropFilter: 'blur(12px)',
-  border: '1px solid rgba(0, 229, 255, 0.08)',
+  background: '#161B22',
+  border: '1px solid rgba(240, 246, 252, 0.1)',
   borderRadius: 2,
 };
 
 const headCellSx = {
   fontWeight: 600,
-  color: 'rgba(0, 229, 255, 0.85)',
-  borderBottom: '1px solid rgba(0, 229, 255, 0.12)',
+  color: '#8B949E',
+  borderBottom: '1px solid rgba(240, 246, 252, 0.1)',
 };
 
 function StatusChip({ status }: { status: string }) {
@@ -46,7 +45,7 @@ function StatusChip({ status }: { status: string }) {
           size="small"
           sx={{
             bgcolor: 'rgba(16, 185, 129, 0.15)',
-            color: '#10b981',
+            color: '#3FB950',
             fontWeight: 600,
           }}
         />
@@ -58,8 +57,8 @@ function StatusChip({ status }: { status: string }) {
           label="Installing"
           size="small"
           sx={{
-            bgcolor: 'rgba(0, 229, 255, 0.12)',
-            color: 'rgba(0, 229, 255, 0.9)',
+            bgcolor: 'rgba(88, 166, 255, 0.12)',
+            color: 'rgba(88, 166, 255, 0.9)',
             fontWeight: 600,
             animation: 'pulse 1.5s ease-in-out infinite',
             '@keyframes pulse': {
@@ -77,7 +76,7 @@ function StatusChip({ status }: { status: string }) {
           size="small"
           sx={{
             bgcolor: 'rgba(239, 68, 68, 0.15)',
-            color: '#ef4444',
+            color: '#F85149',
             fontWeight: 600,
           }}
         />
@@ -241,7 +240,7 @@ export default function ReferencesPage() {
       <TableRow key={i}>
         {[...Array(cols)].map((__, j) => (
           <TableCell key={j}>
-            <Skeleton variant="text" sx={{ bgcolor: 'rgba(0, 229, 255, 0.05)' }} />
+            <Skeleton variant="text" sx={{ bgcolor: 'rgba(139, 148, 158, 0.08)' }} />
           </TableCell>
         ))}
       </TableRow>
@@ -251,7 +250,7 @@ export default function ReferencesPage() {
     <Box>
       <Typography
         variant="h4"
-        sx={{ mb: 3, fontWeight: 700, color: 'rgba(0, 229, 255, 0.9)' }}
+        sx={{ mb: 3, fontWeight: 700 }}
       >
         References
       </Typography>
@@ -284,7 +283,7 @@ export default function ReferencesPage() {
               references.map((ref) => (
                 <TableRow
                   key={ref.id}
-                  sx={{ '&:hover': { bgcolor: 'rgba(0, 229, 255, 0.03)' } }}
+                  sx={{ '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.03)' } }}
                 >
                   <TableCell>{ref.name}</TableCell>
                   <TableCell>{ref.species}</TableCell>
@@ -305,7 +304,7 @@ export default function ReferencesPage() {
       </TableContainer>
 
       {/* ── Available Packages ── */}
-      <Divider sx={{ mb: 3, borderColor: 'rgba(0, 229, 255, 0.08)' }} />
+      <Divider sx={{ mb: 3, borderColor: 'rgba(240, 246, 252, 0.1)' }} />
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
         Available Packages
       </Typography>
@@ -341,7 +340,7 @@ export default function ReferencesPage() {
                 return (
                   <TableRow
                     key={pkg.name}
-                    sx={{ '&:hover': { bgcolor: 'rgba(0, 229, 255, 0.03)' } }}
+                    sx={{ '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.03)' } }}
                   >
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -370,11 +369,11 @@ export default function ReferencesPage() {
                               sx={{
                                 height: 6,
                                 borderRadius: 3,
-                                bgcolor: 'rgba(0, 229, 255, 0.08)',
+                                bgcolor: 'rgba(88, 166, 255, 0.06)',
                                 '& .MuiLinearProgress-bar': {
                                   borderRadius: 3,
                                   background:
-                                    'linear-gradient(90deg, rgba(0, 229, 255, 0.6), rgba(0, 229, 255, 0.9))',
+                                    '#58A6FF',
                                 },
                               }}
                             />
@@ -383,7 +382,7 @@ export default function ReferencesPage() {
                               sx={{
                                 display: 'block',
                                 mt: 0.5,
-                                color: 'rgba(0, 229, 255, 0.7)',
+                                color: 'rgba(88, 166, 255, 0.7)',
                                 fontFamily: 'JetBrains Mono',
                                 fontSize: '0.7rem',
                                 whiteSpace: 'nowrap',
@@ -403,7 +402,7 @@ export default function ReferencesPage() {
                               sx={{
                                 display: 'block',
                                 mt: 0.5,
-                                color: '#ef4444',
+                                color: '#F85149',
                                 fontSize: '0.7rem',
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
@@ -426,17 +425,17 @@ export default function ReferencesPage() {
                         disabled={isInstalled || isInstalling}
                         onClick={() => handleInstall(pkg.name)}
                         sx={{
-                          borderColor: 'rgba(0, 229, 255, 0.3)',
-                          color: 'rgba(0, 229, 255, 0.85)',
+                          borderColor: 'rgba(240, 246, 252, 0.1)',
+                          color: '#58A6FF',
                           textTransform: 'none',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           '&:hover': {
-                            borderColor: 'rgba(0, 229, 255, 0.6)',
-                            bgcolor: 'rgba(0, 229, 255, 0.06)',
+                            borderColor: '#58A6FF',
+                            bgcolor: 'rgba(88, 166, 255, 0.06)',
                           },
                           '&.Mui-disabled': {
-                            borderColor: 'rgba(156, 163, 175, 0.15)',
-                            color: 'rgba(156, 163, 175, 0.5)',
+                            borderColor: 'rgba(240, 246, 252, 0.06)',
+                            color: 'rgba(139, 148, 158, 0.5)',
                           },
                         }}
                       >

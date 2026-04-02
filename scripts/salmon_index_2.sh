@@ -29,7 +29,7 @@ if [ -z "$FASTA" ] || [ ! -f "$FASTA" ]; then
   exit 3
 fi
 
-[ ! -f "$FASTA.fai" ] && samtools faidx "$FASTA" && chmod 777 "$FASTA.fai"
+[ ! -f "$FASTA.fai" ] && samtools faidx "$FASTA" && [ -f "$FASTA.fai" ] && chmod 777 "$FASTA.fai"
 
 if [ -n "$OTHER_ARGS" ]; then
   echo "Processing with custom arguments: \"${OTHER_ARGS}\""
@@ -47,4 +47,4 @@ if [ ! -d "$INDEXED_FASTA" ]; then
   exit 4
 fi
 
-chmod -R 777 "$INDEXED_FASTA"
+[ -d "$INDEXED_FASTA" ] && chmod -R 777 "$INDEXED_FASTA"

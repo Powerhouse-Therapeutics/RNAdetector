@@ -15,8 +15,8 @@ export default function LoadingSkeleton({ variant = 'table', rows = 5 }: Loading
             sx={{
               p: 3,
               borderRadius: 3,
-              background: 'rgba(17, 24, 39, 0.6)',
-              border: '1px solid rgba(0, 229, 255, 0.08)',
+              background: '#161B22',
+              border: '1px solid rgba(240, 246, 252,0.08)',
             }}
           >
             <Skeleton

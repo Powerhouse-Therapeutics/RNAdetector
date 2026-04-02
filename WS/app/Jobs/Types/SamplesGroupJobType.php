@@ -102,6 +102,9 @@ class SamplesGroupJobType extends AbstractJob
         $samplesGroups = [];
         $others = [];
         foreach ($jobs as $job) {
+            if ($job === null) {
+                continue;
+            }
             if ($job->job_type === 'samples_group_job_type') {
                 $samplesGroups[] = $job;
             } else {
@@ -112,8 +115,11 @@ class SamplesGroupJobType extends AbstractJob
         $descriptionFiles = [];
         foreach ($samplesGroups as $job) {
             $containedJobs = $job->getOutput('jobs');
-            $descriptionFiles[] = $job->absoluteJobPath($job->getOutput('description')['path']);
-            if ($jobs !== null && is_array($jobs)) {
+            $descriptionOutput = $job->getOutput('description');
+            if (is_array($descriptionOutput) && isset($descriptionOutput['path'])) {
+                $descriptionFiles[] = $job->absoluteJobPath($descriptionOutput['path']);
+            }
+            if ($containedJobs !== null && is_array($containedJobs)) {
                 foreach ($containedJobs as $cjId) {
                     if (isset($others[$cjId])) {
                         $samplesGroupsJobs[$cjId] = $others[$cjId];
@@ -165,7 +171,13 @@ class SamplesGroupJobType extends AbstractJob
      */
     private function checkJobsTypes(array $models): string
     {
+        if (empty($models)) {
+            throw new ProcessingJobException('No valid jobs found to check types.');
+        }
         $firstType = $models[0]->job_type;
+        if (empty($firstType)) {
+            throw new ProcessingJobException('First job has no type defined.');
+        }
         foreach ($models as $model) {
             if ($model->job_type !== $firstType) {
                 throw new ProcessingJobException('All jobs must be of the same type');
@@ -203,12 +215,21 @@ class SamplesGroupJobType extends AbstractJob
      */
     private function prepareMetaArray(string $descriptor): array
     {
+        if (!file_exists($descriptor)) {
+            throw new ProcessingJobException('Descriptor file does not exist: ' . $descriptor);
+        }
         $fp = @fopen($descriptor, 'rb');
         if (!$fp) {
-            throw new ProcessingJobException('Unable to open descriptor file');
+            throw new ProcessingJobException('Unable to open descriptor file: ' . $descriptor);
         }
         $meta = [];
+        $lineNum = 0;
         while (($data = fgetcsv($fp, 0, "\t")) !== false) {
+            $lineNum++;
+            if (!is_array($data) || count($data) < 3) {
+                $this->log('Warning: skipping malformed line ' . $lineNum . ' in descriptor file.');
+                continue;
+            }
             $meta[] = [
                 'field'   => $data[0],
                 'type'    => $data[1],
@@ -395,7 +416,7 @@ class SamplesGroupJobType extends AbstractJob
         $zip = new ZipArchive();
         if ($zip->open($output, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
             foreach ($sampleComposeContent as $content) {
-                if ($content[2] !== null) {
+                if (isset($content[2]) && $content[2] !== null && $content[2] !== 'NA' && file_exists($content[2])) {
                     $zip->addFile($content[2], basename($content[2]));
                 }
             }
@@ -436,7 +457,7 @@ class SamplesGroupJobType extends AbstractJob
             $command[] = '-c';
         } elseif ($transcripts) {
             $txRelative = $this->getJobFile('harmonized_transcripts_output_', '.txt');
-            $txFile = $this->absoluteJobPath($outputRelative);
+            $txFile = $this->absoluteJobPath($txRelative);
             $txUrl = \Storage::disk('public')->url($txRelative);
             $command[] = '-t';
             $command[] = '-s';
@@ -474,6 +495,9 @@ class SamplesGroupJobType extends AbstractJob
     public function handle(): void
     {
         $jobs = $this->getParameter('jobs', []);
+        if (!is_array($jobs) || empty($jobs)) {
+            throw new ProcessingJobException('No jobs have been specified or jobs parameter is invalid.');
+        }
         $models = $this->processValidJobs($jobs);
         $models = $this->waitForCompletion($models);
         [$models, $preBuiltDescriptions] = $this->processSamplesGroups($models);

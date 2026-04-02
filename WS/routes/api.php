@@ -26,7 +26,7 @@ Route::post('/auth/refresh', 'Api\\AuthController@refresh');
 
 Route::group(
     [
-        'middleware' => 'auth:api',
+        'middleware' => 'jwt',
     ],
     static function () {
         Route::get('/auth-ping', 'Api\\PingController@ping');
@@ -60,6 +60,8 @@ Route::group(
         // JWT authenticated auth routes
         Route::post('/auth/logout', 'Api\\AuthController@logout');
         Route::get('/auth/me', 'Api\\AuthController@me');
+        Route::post('/auth/change-password', 'Api\\AuthController@changePassword');
+        Route::put('/auth/profile', 'Api\\AuthController@updateProfile');
 
         Route::apiResource('annotations', 'Api\\AnnotationController')->names(
             [
@@ -88,6 +90,11 @@ Route::group(
         Route::get('/server/packages', 'Api\ServerController@packages');
         Route::post('/server/packages/{name}/install', 'Api\ServerController@install');
         Route::get('/server/packages/{name}/status', 'Api\ServerController@installStatus');
+
+        // Report generation & retrieval
+        Route::get('/jobs/{job}/report', 'Api\ReportController@show');
+        Route::get('/jobs/{job}/report/status', 'Api\ReportController@status');
+        Route::post('/jobs/{job}/report/generate', 'Api\ReportController@generate');
     }
 );
 

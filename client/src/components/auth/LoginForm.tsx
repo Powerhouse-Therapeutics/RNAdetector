@@ -41,9 +41,9 @@ export default function LoginForm() {
         p: 4,
         width: '100%',
         maxWidth: 420,
-        background: 'rgba(17, 24, 39, 0.7)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(0, 229, 255, 0.12)',
+        background: '#161B22',
+        border: '1px solid rgba(240, 246, 252, 0.1)',
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)',
       }}
     >
       <Typography variant="h5" sx={{ mb: 3, textAlign: 'center', color: 'primary.main' }}>
@@ -85,8 +85,8 @@ export default function LoginForm() {
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
             sx={{
-              color: 'rgba(0, 229, 255, 0.4)',
-              '&.Mui-checked': { color: '#00E5FF' },
+              color: 'rgba(88, 166, 255, 0.4)',
+              '&.Mui-checked': { color: '#58A6FF' },
             }}
           />
         }

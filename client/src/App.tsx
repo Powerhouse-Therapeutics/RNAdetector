@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import AppShell from '@/components/layout/AppShell';
+import ErrorBoundary, { PageErrorBoundary } from '@/components/ui/ErrorBoundary';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import AnalysisPage from '@/pages/AnalysisPage';
@@ -16,24 +17,26 @@ import ReportViewerPage from '@/pages/ReportViewerPage';
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/docs" element={<DocsPage />} />
-      <Route element={<ProtectedRoute />}>
-        <Route element={<AppShell />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/analysis/:type" element={<AnalysisPage />} />
-          <Route path="/jobs" element={<JobsPage />} />
-          <Route path="/files" element={<FileBrowserPage />} />
-          <Route path="/references" element={<ReferencesPage />} />
-          <Route path="/annotations" element={<AnnotationsPage />} />
-          <Route path="/templates" element={<TemplatesPage />} />
-          <Route path="/admin" element={<ServerAdminPage />} />
-          <Route path="/jobs/:jobId/report" element={<ReportViewerPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/documentation" element={<DocsPage />} />
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<PageErrorBoundary><LoginPage /></PageErrorBoundary>} />
+        <Route path="/docs" element={<PageErrorBoundary><DocsPage /></PageErrorBoundary>} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<PageErrorBoundary><DashboardPage /></PageErrorBoundary>} />
+            <Route path="/analysis/:type" element={<PageErrorBoundary><AnalysisPage /></PageErrorBoundary>} />
+            <Route path="/jobs" element={<PageErrorBoundary><JobsPage /></PageErrorBoundary>} />
+            <Route path="/files" element={<PageErrorBoundary><FileBrowserPage /></PageErrorBoundary>} />
+            <Route path="/references" element={<PageErrorBoundary><ReferencesPage /></PageErrorBoundary>} />
+            <Route path="/annotations" element={<PageErrorBoundary><AnnotationsPage /></PageErrorBoundary>} />
+            <Route path="/templates" element={<PageErrorBoundary><TemplatesPage /></PageErrorBoundary>} />
+            <Route path="/admin" element={<PageErrorBoundary><ServerAdminPage /></PageErrorBoundary>} />
+            <Route path="/jobs/:jobId/report" element={<PageErrorBoundary><ReportViewerPage /></PageErrorBoundary>} />
+            <Route path="/settings" element={<PageErrorBoundary><SettingsPage /></PageErrorBoundary>} />
+            <Route path="/documentation" element={<PageErrorBoundary><DocsPage /></PageErrorBoundary>} />
+          </Route>
         </Route>
-      </Route>
-    </Routes>
+      </Routes>
+    </ErrorBoundary>
   );
 }

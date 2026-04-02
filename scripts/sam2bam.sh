@@ -44,4 +44,4 @@ if ! samtools view -S -b "$INPUT" >"$OUTPUT"; then
   echo "An error occurred during samtools execution"
   exit 6
 fi
-chmod 777 "$OUTPUT"
+[ -f "$OUTPUT" ] && chmod 777 "$OUTPUT"

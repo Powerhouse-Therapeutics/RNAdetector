@@ -5,7 +5,7 @@ import {
 import { Save, Person, Lock } from '@mui/icons-material';
 import useAuthStore from '@/stores/authStore';
 import useNotificationStore from '@/stores/notificationStore';
-import client from '@/api/client';
+import client, { getErrorMessage } from '@/api/client';
 
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user);
@@ -28,8 +28,8 @@ export default function SettingsPage() {
       const { data } = await client.put('auth/profile', { name: profileName, email: profileEmail });
       setUser(data);
       notify('Profile updated successfully', 'success');
-    } catch (err: any) {
-      notify(err?.response?.data?.message || 'Failed to update profile', 'error');
+    } catch (err: unknown) {
+      notify(getErrorMessage(err, 'Failed to update profile'), 'error');
     } finally {
       setProfileSaving(false);
     }
@@ -55,8 +55,8 @@ export default function SettingsPage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (err: any) {
-      setPasswordError(err?.response?.data?.error || 'Failed to change password');
+    } catch (err: unknown) {
+      setPasswordError(getErrorMessage(err, 'Failed to change password'));
     } finally {
       setPasswordSaving(false);
     }
@@ -87,7 +87,7 @@ export default function SettingsPage() {
                     </Typography>
                   </Box>
                 </Box>
-                <Divider sx={{ borderColor: 'rgba(0, 229, 255, 0.08)' }} />
+                <Divider sx={{ borderColor: 'rgba(240, 246, 252,0.08)' }} />
                 <TextField
                   label="Name"
                   value={profileName}

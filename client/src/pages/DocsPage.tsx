@@ -52,7 +52,7 @@ function CodeBlock({ children }: { children: string }) {
     <Paper
       sx={{
         p: 2, mb: 2, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.85rem',
-        bgcolor: 'rgba(0, 0, 0, 0.3)', border: '1px solid rgba(0, 229, 255, 0.08)',
+        bgcolor: '#0D1117', border: '1px solid rgba(240, 246, 252, 0.1)',
         whiteSpace: 'pre-wrap', overflowX: 'auto',
       }}
     >
@@ -80,8 +80,8 @@ export default function DocsPage() {
 
       <Paper
         sx={{
-          background: 'rgba(17, 24, 39, 0.6)', backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(0, 229, 255, 0.1)',
+          background: '#161B22',
+          border: '1px solid rgba(240, 246, 252,0.1)',
         }}
       >
         <Tabs
@@ -89,7 +89,7 @@ export default function DocsPage() {
           onChange={(_, v) => setTab(v)}
           variant="scrollable"
           scrollButtons="auto"
-          sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.08)', px: 2 }}
+          sx={{ borderBottom: '1px solid rgba(240, 246, 252,0.08)', px: 2 }}
         >
           <Tab label="Getting Started" />
           <Tab label="Analysis Workflows" />
@@ -120,14 +120,14 @@ export default function DocsPage() {
               configure the aligner and parameters, then submit the job.
             </Paragraph>
             <Paragraph>
-              4. <strong>Monitor jobs</strong> on the Jobs page. Running jobs update automatically every 10 seconds.
+              4. <strong>Monitor jobs</strong> on the Jobs page. Running jobs update automatically every 5-15 seconds (adaptive based on job activity).
             </Paragraph>
             <Paragraph>
               5. <strong>Review results</strong> once jobs complete. HTML reports with publication-ready figures and
               reproducible R code are generated automatically.
             </Paragraph>
 
-            <Divider sx={{ my: 3, borderColor: 'rgba(0, 229, 255, 0.08)' }} />
+            <Divider sx={{ my: 3, borderColor: 'rgba(240, 246, 252,0.08)' }} />
 
             <SubSection>Supported Analysis Types</SubSection>
             <TableContainer>
@@ -159,17 +159,17 @@ export default function DocsPage() {
               </Table>
             </TableContainer>
 
-            <Divider sx={{ my: 3, borderColor: 'rgba(0, 229, 255, 0.08)' }} />
+            <Divider sx={{ my: 3, borderColor: 'rgba(240, 246, 252,0.08)' }} />
 
             <SubSection>Supported Organisms</SubSection>
             <Paragraph>
               Pre-built genome and transcriptome packages are available for:
             </Paragraph>
             <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
-              <Chip label="Human hg19" size="small" sx={{ bgcolor: 'rgba(0, 229, 255, 0.1)', color: 'primary.main' }} />
-              <Chip label="Human hg38" size="small" sx={{ bgcolor: 'rgba(0, 229, 255, 0.1)', color: 'primary.main' }} />
-              <Chip label="Mouse mm10" size="small" sx={{ bgcolor: 'rgba(0, 229, 255, 0.1)', color: 'primary.main' }} />
-              <Chip label="Mouse mm39" size="small" sx={{ bgcolor: 'rgba(0, 229, 255, 0.1)', color: 'primary.main' }} />
+              <Chip label="Human hg19" size="small" sx={{ bgcolor: 'rgba(240, 246, 252,0.1)', color: 'primary.main' }} />
+              <Chip label="Human hg38" size="small" sx={{ bgcolor: 'rgba(240, 246, 252,0.1)', color: 'primary.main' }} />
+              <Chip label="Mouse mm10" size="small" sx={{ bgcolor: 'rgba(240, 246, 252,0.1)', color: 'primary.main' }} />
+              <Chip label="Mouse mm39" size="small" sx={{ bgcolor: 'rgba(240, 246, 252,0.1)', color: 'primary.main' }} />
             </Stack>
             <Paragraph>
               Custom organisms can be added by uploading genome FASTA, transcriptome, and annotation files
@@ -329,7 +329,7 @@ export default function DocsPage() {
             <SubSection><Stack direction="row" alignItems="center" spacing={1}><Work fontSize="small" sx={{ color: 'primary.main' }} /> Job Management</Stack></SubSection>
             <Paragraph>
               The Jobs page shows all submitted analyses with their status (ready, queued, processing,
-              completed, failed). Jobs auto-refresh every 10 seconds. You can filter by status and
+              completed, failed). Jobs auto-refresh every 5-15 seconds (adaptive based on job activity). You can filter by status and
               delete jobs that are no longer needed.
             </Paragraph>
 

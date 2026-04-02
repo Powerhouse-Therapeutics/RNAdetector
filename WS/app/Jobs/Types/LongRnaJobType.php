@@ -153,12 +153,27 @@ class LongRnaJobType extends AbstractJob
         $convertBam = (bool)$this->model->getParameter('convertBam', false);
         $firstInputFile = $this->model->getParameter('firstInputFile');
         $secondInputFile = $this->model->getParameter('secondInputFile');
+        if (empty($inputType) || !in_array($inputType, self::VALID_INPUT_TYPES, true)) {
+            throw new ProcessingJobException('Invalid or missing input type: ' . ($inputType ?? 'null'));
+        }
+        if (empty($firstInputFile)) {
+            throw new ProcessingJobException('First input file is required.');
+        }
+        if ($paired && empty($secondInputFile) && $inputType === self::FASTQ) {
+            throw new ProcessingJobException('Second input file is required for paired-end analysis.');
+        }
         $trimGaloreEnable = (bool)$this->model->getParameter('trimGalore.enable', $inputType === self::FASTQ);
         $trimGaloreQuality = (int)$this->model->getParameter('trimGalore.quality', 20);
         $trimGaloreLength = (int)$this->model->getParameter('trimGalore.length', 14);
         $threads = $this->threads();
         $algorithm = $this->getParameter('algorithm', self::STAR);
         $countingAlgorithm = $this->getParameter('countingAlgorithm', self::FEATURECOUNTS_COUNTS);
+        if (!in_array($algorithm, self::VALID_ALIGN_QUANT_METHODS, true)) {
+            throw new ProcessingJobException('Invalid algorithm: ' . $algorithm);
+        }
+        if (!in_array($countingAlgorithm, self::VALID_COUNTING_METHODS, true)) {
+            throw new ProcessingJobException('Invalid counting algorithm: ' . $countingAlgorithm);
+        }
         if ($inputType === self::SAM) {
             $firstInputFile = self::convertSamToBam($this->model, $firstInputFile);
             $inputType = self::BAM;
@@ -333,17 +348,23 @@ class LongRnaJobType extends AbstractJob
             },
             static function (Job $job) {
                 $output = $job->getOutput('harmonizedFile');
+                if (!is_array($output) || !isset($output['path'])) {
+                    return null;
+                }
 
                 return $job->absoluteJobPath($output['path']);
             },
             static function (Job $job) {
                 $output = $job->getOutput('outputFile');
+                if (!is_array($output) || !isset($output['path'])) {
+                    return null;
+                }
 
                 return $job->absoluteJobPath($output['path']);
             },
             static function (Job $job) {
                 $output = $job->getOutput('harmonizedTranscriptsFile');
-                if ($output === null) {
+                if ($output === null || !is_array($output) || !isset($output['path'])) {
                     return null;
                 }
 
@@ -355,9 +376,12 @@ class LongRnaJobType extends AbstractJob
                 $transcriptome = $job->getParameter('transcriptome', config('rnadetector.human_transcriptome_name'));
                 $annotation = $job->getParameter('annotation', config('rnadetector.human_rna_annotation_name'));
 
-                return ($algorithm === self::SALMON || $countingAlgorithm === self::SALMON) ?
-                    Reference::whereName($transcriptome)->firstOrFail()->map_path :
-                    Annotation::whereName($annotation)->firstOrFail()->map_path;
+                if ($algorithm === self::SALMON || $countingAlgorithm === self::SALMON) {
+                    $ref = Reference::whereName($transcriptome)->first();
+                    return $ref !== null ? $ref->map_path : null;
+                }
+                $ann = Annotation::whereName($annotation)->first();
+                return $ann !== null ? $ann->map_path : null;
             },
         ];
     }

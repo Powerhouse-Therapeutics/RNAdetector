@@ -76,7 +76,7 @@ if [ ! -f "$OUTPUT" ]; then
   exit 7
 fi
 
-chmod 777 "$OUTPUT"
+[ -f "$OUTPUT" ] && chmod 777 "$OUTPUT"
 
 if [ -n "$HARMONIZED" ]; then
   CURR_DIR=$(pwd)
@@ -93,5 +93,5 @@ if [ -n "$HARMONIZED" ]; then
       exit 9
     fi
   fi
-  chmod 777 "$HARMONIZED"
+  [ -f "$HARMONIZED" ] && chmod 777 "$HARMONIZED"
 fi

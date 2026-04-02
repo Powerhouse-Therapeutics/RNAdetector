@@ -36,8 +36,8 @@ done
 rm -rf /rnadetector/tmp
 
 # Apply PHP configuration fixes
-sed -i 's/post_max_size \= .M/post_max_size \= 200G/g' /etc/php/*/apache2/php.ini
-sed -i 's/upload_max_filesize \= .M/upload_max_filesize \= 200G/g' /etc/php/*/apache2/php.ini
+sed -i 's/post_max_size \= .*M/post_max_size \= 200G/g' /etc/php/*/apache2/php.ini
+sed -i 's/upload_max_filesize \= .*M/upload_max_filesize \= 200G/g' /etc/php/*/apache2/php.ini
 sed -i "s/;date.timezone =/date.timezone = Europe\/London/g" /etc/php/*/apache2/php.ini
 sed -i "s/;date.timezone =/date.timezone = Europe\/London/g" /etc/php/*/cli/php.ini
 sed -i "s/export APACHE_RUN_GROUP=www-data/export APACHE_RUN_GROUP=staff/" /etc/apache2/envvars

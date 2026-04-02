@@ -38,7 +38,7 @@ if [ -z "$MD5" ]; then
     exit 4
 fi
 
-REF_DIR="/rnadetector/ws/storage/app/references/"
+REF_DIR="/rnadetector/ws/storage/app/references"
 FILENAME="${REF_DIR}/${NAME}.tar.bz2"
 MD5_FILE="${REF_DIR}/${NAME}.tar.bz2.md5"
 
@@ -73,7 +73,7 @@ if [ ! -f "$MD5_FILE" ]; then
 fi
 
 CURR_PWD=$(pwd)
-cd "$REF_DIR"
+cd "$REF_DIR" || { echo "Unable to change to reference directory"; exit 9; }
 
 echo "Checking package integrity..."
 if ! md5sum -c "$MD5_FILE"; then
@@ -91,4 +91,4 @@ fi
 
 cleanup
 
-cd "$CURR_PWD"
+cd "$CURR_PWD" || true

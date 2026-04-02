@@ -42,11 +42,11 @@ class JobController extends Controller
      */
     public function index(Request $request): JobCollection
     {
-        $query = Job::query();
+        $query = Job::with('user');
         if ($request->has('deep_type')) {
             $type = $request->get('deep_type');
             if ($type) {
-                $query = Job::deepTypeFilter($type);
+                $query = Job::deepTypeFilter($type)->with('user');
             }
         }
 
@@ -104,8 +104,8 @@ class JobController extends Controller
         $validValues = $this->validate(
             $request,
             [
-                'sample_code' => ['filled', 'string', 'alpha_dash'],
-                'name'        => ['required', 'string'],
+                'sample_code' => ['filled', 'string', 'alpha_dash', 'max:255'],
+                'name'        => ['required', 'string', 'max:500'],
                 'type'        => ['required', 'string', Rule::in($jobTypes->pluck('id'))],
                 'parameters'  => ['filled', 'array'],
             ]
@@ -116,6 +116,10 @@ class JobController extends Controller
         $validParameters = $this->validate($request, $parametersValidation);
         $type = $validValues['type'];
         $validParameters = $validParameters['parameters'] ?? [];
+        $userId = \Auth::guard('api')->id();
+        if (empty($userId)) {
+            abort(401, 'Authentication required to create a job.');
+        }
         $job = Job::create(
             [
                 'sample_code'    => $validValues['sample_code'] ?? null,
@@ -125,7 +129,7 @@ class JobController extends Controller
                 'job_parameters' => [],
                 'job_output'     => [],
                 'log'            => '',
-                'user_id'        => \Auth::guard('api')->id(),
+                'user_id'        => $userId,
             ]
         );
         $job->setParameters(Arr::dot($validParameters));
@@ -206,6 +210,18 @@ class JobController extends Controller
         if (!$job->canBeModified()) {
             abort(400, 'Unable to submit a job that is already submitted.');
         }
+        // Verify that the job type handler exists before submitting
+        try {
+            $handler = Factory::get($job);
+            if (!$handler->isInputValid()) {
+                abort(422, 'Job input validation failed. Please check your parameters and uploaded files.');
+            }
+        } catch (\Throwable $e) {
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
+                throw $e;
+            }
+            abort(422, 'Job validation error: ' . $e->getMessage());
+        }
         $job->setStatus(Job::QUEUED);
         JobRequest::dispatch($job);
 
@@ -224,11 +240,15 @@ class JobController extends Controller
         if (!$job->canBeModified()) {
             abort(400, 'Unable to upload a file for a job that is already submitted.');
         }
+        $uploadDir = $job->getAbsoluteJobDirectory();
+        if (empty($uploadDir) || !is_dir($uploadDir)) {
+            abort(500, 'Job directory is not available. Please try again.');
+        }
         set_time_limit(0);
         /** @var \TusPhp\Tus\Server $server */
         $server = app('tus-server');
         $server->setApiPath(route('jobs.upload', $job, false))
-               ->setUploadDir($job->getAbsoluteJobDirectory());
+               ->setUploadDir($uploadDir);
         $response = $server->serve();
 
         return $response->send();

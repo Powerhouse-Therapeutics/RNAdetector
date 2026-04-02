@@ -87,7 +87,7 @@ read.samples <- function (input) {
       table$start <- NA
       no.pos = TRUE
     }
-    if (!all("start" %in% colnames(table))) {
+    if (!all("end" %in% colnames(table))) {
       table$end <- NA
       no.pos = TRUE
     }

@@ -108,7 +108,7 @@ trait UseCountingTrait
         if (!$annotation->isGtf()) {
             throw new ProcessingJobException('The selected annotation must be in GTF format.');
         }
-        $model->appendLog('Counting with Feature-Count.');;
+        $model->appendLog('Counting with Feature-Count.');
         $relativeOutput = $model->getJobFile('featurecount_output_', '.txt');
         $absoluteOutput = $model->absoluteJobPath($relativeOutput);
         $outputUrl = \Storage::disk('public')->url($relativeOutput);

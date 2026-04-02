@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Navigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -14,7 +15,6 @@ import {
   Paper,
   Button,
   Chip,
-  LinearProgress,
   Stack,
   TextField,
   Dialog,
@@ -25,6 +25,7 @@ import {
   Switch,
   IconButton,
   Tooltip,
+  keyframes,
 } from '@mui/material';
 import {
   AdminPanelSettings as AdminIcon,
@@ -36,12 +37,41 @@ import {
   PersonAdd as PersonAddIcon,
   Delete as DeleteIcon,
   People as PeopleIcon,
+  Shield as ShieldIcon,
 } from '@mui/icons-material';
 import type { ServerStatus, User } from '@/types';
 import { getServerStatus, getPackages, installPackage, getInstallProgress } from '@/api/server';
-import client from '@/api/client';
+import client, { getErrorMessage } from '@/api/client';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import useNotificationStore from '@/stores/notificationStore';
+import useAuthStore from '@/stores/authStore';
+
+const fadeInUp = keyframes`
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+`;
+
+const subtlePulse = keyframes`
+  0%   { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.2); }
+  50%  { box-shadow: 0 0 8px 0 rgba(88, 166, 255, 0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.2); }
+`;
+
+const tableHeaderCellSx = {
+  fontWeight: 600,
+  color: '#8B949E',
+  fontSize: '0.78rem',
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase' as const,
+  borderBottom: '1px solid rgba(88, 166, 255, 0.08)',
+};
+
+const tableContainerSx = {
+  background: 'rgba(22, 27, 34, 0.8)',
+  borderRadius: '12px',
+  border: '1px solid rgba(88, 166, 255, 0.06)',
+  overflow: 'hidden' as const,
+};
 
 interface PackageInfo {
   name: string;
@@ -52,6 +82,7 @@ interface PackageInfo {
 }
 
 export default function ServerAdminPage() {
+  const user = useAuthStore((s) => s.user);
   const [status, setStatus] = useState<ServerStatus | null>(null);
   const [packages, setPackages] = useState<PackageInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +96,8 @@ export default function ServerAdminPage() {
   const loadUsers = useCallback(async () => {
     try {
       const { data } = await client.get('admin/users');
-      setUsers(data.data ?? data);
+      const result = data?.data ?? data;
+      setUsers(Array.isArray(result) ? result : []);
     } catch { /* ignore */ }
   }, []);
 
@@ -76,8 +108,8 @@ export default function ServerAdminPage() {
       setShowAddUser(false);
       setNewUser({ name: '', email: '', password: '', admin: false });
       loadUsers();
-    } catch (err: any) {
-      notify(err?.response?.data?.message || 'Failed to create user', 'error');
+    } catch (err: unknown) {
+      notify(getErrorMessage(err, 'Failed to create user'), 'error');
     }
   };
 
@@ -86,20 +118,28 @@ export default function ServerAdminPage() {
       await client.delete(`admin/users/${id}`);
       notify('User deleted', 'success');
       loadUsers();
-    } catch (err: any) {
-      notify(err?.response?.data?.error || 'Failed to delete user', 'error');
+    } catch (err: unknown) {
+      notify(getErrorMessage(err, 'Failed to delete user'), 'error');
     }
   };
 
   const loadData = useCallback(async () => {
     try {
-      const [statusData, pkgData] = await Promise.all([getServerStatus(), getPackages()]);
-      setStatus(statusData);
-      setPackages(pkgData.data ?? pkgData);
+      const [statusResult, pkgResult] = await Promise.allSettled([getServerStatus(), getPackages()]);
+      if (statusResult.status === 'fulfilled' && statusResult.value) {
+        setStatus(statusResult.value);
+      }
+      if (pkgResult.status === 'fulfilled') {
+        const pkgData = pkgResult.value;
+        const list = pkgData?.data ?? pkgData;
+        setPackages(Array.isArray(list) ? list : []);
+      }
+    } catch {
+      notify('Failed to load server data', 'error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     loadData();
@@ -176,34 +216,47 @@ export default function ServerAdminPage() {
     }
   };
 
+  if (user && !user.admin) {
+    return <Navigate to="/" replace />;
+  }
+
   if (loading) return <LoadingSkeleton variant="detail" />;
 
   const memUsedPercent = status
-    ? ((status.total_memory_gb - status.available_memory_gb) / status.total_memory_gb) * 100
+    ? (status.total_memory_gb > 0 ? ((status.total_memory_gb - status.available_memory_gb) / status.total_memory_gb) * 100 : 0)
     : 0;
 
   return (
-    <Box>
-      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
-        <AdminIcon sx={{ color: 'primary.main', fontSize: 28 }} />
-        <Typography variant="h4">Server Administration</Typography>
-      </Stack>
+    <Box sx={{ animation: `${fadeInUp} 300ms ease` }}>
+      <Box sx={{ mb: 3.5 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: 'rgba(88, 166, 255, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <AdminIcon sx={{ color: '#58A6FF', fontSize: 20 }} />
+          </Box>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: '#C9D1D9', letterSpacing: '-0.01em' }}>Server Administration</Typography>
+            <Typography variant="body2" sx={{ color: '#8B949E', mt: 0.25 }}>Manage server resources, packages, and users</Typography>
+          </Box>
+        </Stack>
+      </Box>
 
       {/* Server Status */}
       {status && (
+        <Box sx={{ animation: `${fadeInUp} 400ms ease`, animationDelay: '100ms', animationFillMode: 'both' }}>
         <Card
           sx={{
             mb: 4,
-            background: 'rgba(17, 24, 39, 0.6)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(0, 229, 255, 0.1)',
+            background: 'rgba(22, 27, 34, 0.8)',
+            border: '1px solid rgba(88, 166, 255, 0.08)',
           }}
         >
-          <CardContent>
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CpuIcon sx={{ color: 'primary.main' }} />
-              Server Status
-            </Typography>
+          <CardContent sx={{ p: 3 }}>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
+              <Box sx={{ width: 28, height: 28, borderRadius: '7px', bgcolor: 'rgba(88, 166, 255, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CpuIcon sx={{ color: '#58A6FF', fontSize: 16 }} />
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#C9D1D9' }}>Server Status</Typography>
+            </Stack>
             <Grid container spacing={3}>
               <Grid item xs={6} sm={3}>
                 <StatusItem label="Version" value={status.version} />
@@ -227,124 +280,94 @@ export default function ServerAdminPage() {
               </Grid>
               <Grid item xs={12}>
                 <Box>
-                  <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      <DiskIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-                      RAM Usage
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.75 }}>
+                    <Stack direction="row" alignItems="center" spacing={0.75}>
+                      <DiskIcon sx={{ fontSize: 14, color: '#8B949E' }} />
+                      <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500 }}>RAM Usage</Typography>
+                    </Stack>
+                    <Typography variant="caption" sx={{ fontFamily: 'JetBrains Mono', color: '#C9D1D9', fontWeight: 500 }}>
                       {(status.total_memory_gb - status.available_memory_gb).toFixed(1)} / {status.total_memory_gb} GB
                     </Typography>
                   </Stack>
-                  <LinearProgress
-                    variant="determinate"
-                    value={memUsedPercent}
-                    sx={{
-                      height: 8,
-                      borderRadius: 4,
-                      bgcolor: 'rgba(0, 229, 255, 0.08)',
-                      '& .MuiLinearProgress-bar': {
-                        borderRadius: 4,
-                        bgcolor: memUsedPercent > 85 ? 'error.main' : memUsedPercent > 60 ? 'warning.main' : 'primary.main',
-                        boxShadow:
-                          memUsedPercent > 85
-                            ? '0 0 8px rgba(239, 68, 68, 0.4)'
-                            : '0 0 8px rgba(0, 229, 255, 0.3)',
-                      },
-                    }}
-                  />
+                  <Box sx={{ position: 'relative', height: 6, borderRadius: 3, bgcolor: 'rgba(88, 166, 255, 0.06)', overflow: 'hidden' }}>
+                    <Box
+                      sx={{
+                        position: 'absolute', top: 0, left: 0, height: '100%',
+                        width: `${Math.min(memUsedPercent, 100)}%`,
+                        borderRadius: 3,
+                        bgcolor: memUsedPercent > 85 ? '#F85149' : memUsedPercent > 65 ? '#F59E0B' : '#58A6FF',
+                        transition: 'width 600ms cubic-bezier(0.4, 0, 0.2, 1), background-color 400ms ease',
+                        boxShadow: `0 0 8px ${memUsedPercent > 85 ? 'rgba(248, 81, 73, 0.25)' : 'rgba(88, 166, 255, 0.25)'}`,
+                      }}
+                    />
+                  </Box>
                 </Box>
               </Grid>
             </Grid>
           </CardContent>
         </Card>
+        </Box>
       )}
 
       {/* Package Manager */}
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        Package Manager
-      </Typography>
-      <TableContainer
-        component={Paper}
-        sx={{
-          background: 'rgba(17, 24, 39, 0.6)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(0, 229, 255, 0.08)',
-        }}
-      >
+      <Box sx={{ animation: `${fadeInUp} 400ms ease`, animationDelay: '200ms', animationFillMode: 'both' }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+        <Box sx={{ width: 28, height: 28, borderRadius: '7px', bgcolor: 'rgba(188, 140, 255, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <InstallIcon sx={{ color: '#BC8CFF', fontSize: 16 }} />
+        </Box>
+        <Typography variant="h6" sx={{ fontWeight: 600, color: '#C9D1D9' }}>Package Manager</Typography>
+      </Stack>
+      <TableContainer component={Paper} sx={tableContainerSx}>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Name</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Description</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary', width: 150 }}>Action</TableCell>
+              <TableCell sx={tableHeaderCellSx}>Name</TableCell>
+              <TableCell sx={tableHeaderCellSx}>Description</TableCell>
+              <TableCell sx={tableHeaderCellSx}>Status</TableCell>
+              <TableCell sx={{ ...tableHeaderCellSx, width: 150 }}>Action</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {packages.map((pkg) => (
-              <TableRow key={pkg.name}>
+              <TableRow key={pkg.name} sx={{ transition: 'background-color 200ms ease', '& > td': { borderBottom: '1px solid rgba(88, 166, 255, 0.04)', py: 1.5 }, '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.03) !important' } }}>
                 <TableCell>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="body2" sx={{ fontWeight: 500, color: '#C9D1D9' }}>
                     {pkg.name}
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: '#8B949E' }}>
                     {pkg.description}
                   </Typography>
                 </TableCell>
                 <TableCell>
                   {pkg.status === 'installed' && (
-                    <Chip label="Installed" size="small" color="success" sx={{ fontWeight: 600 }} />
+                    <Chip label="Installed" size="small" sx={{ fontWeight: 600, fontSize: '0.72rem', bgcolor: 'rgba(63, 185, 80, 0.1)', color: '#3FB950', border: '1px solid rgba(63, 185, 80, 0.15)' }} />
                   )}
                   {pkg.status === 'available' && (
-                    <Chip label="Available" size="small" sx={{ fontWeight: 600, bgcolor: 'rgba(156, 163, 175, 0.2)', color: '#9CA3AF' }} />
+                    <Chip label="Available" size="small" sx={{ fontWeight: 600, fontSize: '0.72rem', bgcolor: 'rgba(139, 148, 158, 0.08)', color: '#8B949E', border: '1px solid rgba(139, 148, 158, 0.12)' }} />
                   )}
                   {pkg.status === 'installing' && (
-                    <Stack spacing={0.5} sx={{ minWidth: 120 }}>
-                      <Chip
-                        label="Installing"
-                        size="small"
-                        sx={{
-                          fontWeight: 600,
-                          bgcolor: 'rgba(0, 229, 255, 0.15)',
-                          color: '#00E5FF',
-                          animation: 'pulse-glow 2s ease-in-out infinite',
-                        }}
-                      />
+                    <Stack spacing={0.75} sx={{ minWidth: 120 }}>
+                      <Chip label="Installing" size="small" sx={{ fontWeight: 600, fontSize: '0.72rem', bgcolor: 'rgba(88, 166, 255, 0.1)', color: '#58A6FF', border: '1px solid rgba(88, 166, 255, 0.15)', animation: `${subtlePulse} 2.4s ease-in-out infinite` }} />
                       {pkg.progress !== undefined && (
-                        <LinearProgress
-                          variant="determinate"
-                          value={pkg.progress}
-                          sx={{
-                            height: 4,
-                            borderRadius: 2,
-                            bgcolor: 'rgba(0, 229, 255, 0.08)',
-                            '& .MuiLinearProgress-bar': {
-                              bgcolor: 'primary.main',
-                              borderRadius: 2,
-                            },
-                          }}
-                        />
+                        <Box sx={{ position: 'relative', height: 4, borderRadius: 2, bgcolor: 'rgba(88, 166, 255, 0.06)', overflow: 'hidden' }}>
+                          <Box sx={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${pkg.progress}%`, borderRadius: 2, bgcolor: '#58A6FF', transition: 'width 500ms ease' }} />
+                        </Box>
                       )}
                     </Stack>
                   )}
                 </TableCell>
                 <TableCell>
                   {pkg.status === 'installed' ? (
-                    <CheckIcon sx={{ color: 'success.main' }} />
+                    <CheckIcon sx={{ color: '#3FB950', fontSize: 20 }} />
                   ) : pkg.status === 'installing' ? (
-                    <Typography variant="caption" color="primary.main">
+                    <Typography variant="caption" sx={{ fontFamily: 'JetBrains Mono', color: '#58A6FF', fontWeight: 600 }}>
                       {pkg.progress !== undefined ? `${pkg.progress}%` : '...'}
                     </Typography>
                   ) : (
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<InstallIcon />}
-                      onClick={() => handleInstall(pkg.name)}
-                    >
+                    <Button variant="outlined" size="small" startIcon={<InstallIcon sx={{ fontSize: 16 }} />} onClick={() => handleInstall(pkg.name)}
+                      sx={{ borderRadius: '8px', borderColor: 'rgba(88, 166, 255, 0.2)', color: '#58A6FF', fontSize: '0.78rem', transition: 'all 200ms ease', '&:hover': { borderColor: 'rgba(88, 166, 255, 0.4)', bgcolor: 'rgba(88, 166, 255, 0.06)' } }}>
                       Install
                     </Button>
                   )}
@@ -353,71 +376,72 @@ export default function ServerAdminPage() {
             ))}
             {packages.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No packages found.
-                  </Typography>
+                <TableCell colSpan={4} align="center" sx={{ py: 6, borderBottom: 'none' }}>
+                  <Typography variant="body2" sx={{ color: '#484F58', fontStyle: 'italic' }}>No packages found.</Typography>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
+      </Box>
 
       {/* User Management */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 4, mb: 2 }}>
-        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PeopleIcon sx={{ color: 'primary.main' }} />
-          User Management
-        </Typography>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<PersonAddIcon />}
-          onClick={() => setShowAddUser(true)}
-        >
+      <Box sx={{ animation: `${fadeInUp} 400ms ease`, animationDelay: '300ms', animationFillMode: 'both', mt: 4 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Box sx={{ width: 28, height: 28, borderRadius: '7px', bgcolor: 'rgba(63, 185, 80, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <PeopleIcon sx={{ color: '#3FB950', fontSize: 16 }} />
+          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#C9D1D9' }}>User Management</Typography>
+          {users.length > 0 && (
+            <Chip label={`${users.length} users`} size="small" sx={{ height: 22, fontSize: '0.68rem', fontWeight: 600, bgcolor: 'rgba(139, 148, 158, 0.08)', color: '#8B949E', ml: 1 }} />
+          )}
+        </Stack>
+        <Button variant="outlined" size="small" startIcon={<PersonAddIcon sx={{ fontSize: 16 }} />} onClick={() => setShowAddUser(true)}
+          sx={{ borderRadius: '8px', borderColor: 'rgba(88, 166, 255, 0.2)', color: '#58A6FF', fontSize: '0.82rem', transition: 'all 200ms ease', '&:hover': { borderColor: 'rgba(88, 166, 255, 0.4)', bgcolor: 'rgba(88, 166, 255, 0.06)' } }}>
           Add User
         </Button>
       </Stack>
-      <TableContainer
-        component={Paper}
-        sx={{
-          background: 'rgba(17, 24, 39, 0.6)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(0, 229, 255, 0.08)',
-        }}
-      >
+      <TableContainer component={Paper} sx={tableContainerSx}>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Name</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Email</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Role</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Created</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: 'text.secondary', width: 80 }}>Action</TableCell>
+              <TableCell sx={tableHeaderCellSx}>Name</TableCell>
+              <TableCell sx={tableHeaderCellSx}>Email</TableCell>
+              <TableCell sx={tableHeaderCellSx}>Role</TableCell>
+              <TableCell sx={tableHeaderCellSx}>Created</TableCell>
+              <TableCell sx={{ ...tableHeaderCellSx, width: 80 }}>Action</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {users.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell>{u.name}</TableCell>
-                <TableCell>{u.email}</TableCell>
+              <TableRow key={u.id} sx={{ transition: 'background-color 200ms ease', '& > td': { borderBottom: '1px solid rgba(88, 166, 255, 0.04)', py: 1.5 }, '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.03) !important' } }}>
+                <TableCell><Typography variant="body2" sx={{ fontWeight: 500, color: '#C9D1D9' }}>{u.name}</Typography></TableCell>
+                <TableCell><Typography variant="body2" sx={{ color: '#8B949E' }}>{u.email}</Typography></TableCell>
                 <TableCell>
                   <Chip
+                    icon={u.admin ? <ShieldIcon sx={{ fontSize: '14px !important' }} /> : undefined}
                     label={u.admin ? 'Admin' : 'User'}
                     size="small"
-                    color={u.admin ? 'primary' : 'default'}
-                    sx={{ fontWeight: 600 }}
+                    sx={{
+                      fontWeight: 600, fontSize: '0.72rem',
+                      bgcolor: u.admin ? 'rgba(88, 166, 255, 0.1)' : 'rgba(139, 148, 158, 0.08)',
+                      color: u.admin ? '#58A6FF' : '#8B949E',
+                      border: `1px solid ${u.admin ? 'rgba(88, 166, 255, 0.15)' : 'rgba(139, 148, 158, 0.12)'}`,
+                      '& .MuiChip-icon': { color: 'inherit' },
+                    }}
                   />
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.78rem', color: '#8B949E' }}>
                     {new Date(u.created_at).toLocaleDateString()}
                   </Typography>
                 </TableCell>
                 <TableCell>
                   <Tooltip title="Delete user">
-                    <IconButton size="small" onClick={() => handleDeleteUser(u.id)} sx={{ color: 'error.main' }}>
+                    <IconButton size="small" onClick={() => handleDeleteUser(u.id)}
+                      sx={{ color: '#F85149', borderRadius: '6px', opacity: 0.6, transition: 'all 200ms ease', '&:hover': { opacity: 1, bgcolor: 'rgba(248, 81, 73, 0.1)' } }}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -426,61 +450,41 @@ export default function ServerAdminPage() {
             ))}
             {users.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                  <Typography variant="body2" color="text.secondary">No users found.</Typography>
+                <TableCell colSpan={5} align="center" sx={{ py: 6, borderBottom: 'none' }}>
+                  <Typography variant="body2" sx={{ color: '#484F58', fontStyle: 'italic' }}>No users found.</Typography>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
+      </Box>
 
       {/* Add User Dialog */}
-      <Dialog open={showAddUser} onClose={() => setShowAddUser(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New User</DialogTitle>
+      <Dialog open={showAddUser} onClose={() => setShowAddUser(false)} maxWidth="sm" fullWidth
+        PaperProps={{ sx: { background: '#161B22', border: '1px solid rgba(88, 166, 255, 0.1)', borderRadius: '12px' } }}>
+        <DialogTitle sx={{ fontWeight: 600, color: '#C9D1D9', pb: 0.5 }}>Add New User</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Name"
-              value={newUser.name}
-              onChange={(e) => setNewUser((p) => ({ ...p, name: e.target.value }))}
-              fullWidth
-              required
-            />
-            <TextField
-              label="Email"
-              type="email"
-              value={newUser.email}
-              onChange={(e) => setNewUser((p) => ({ ...p, email: e.target.value }))}
-              fullWidth
-              required
-            />
-            <TextField
-              label="Password"
-              type="password"
-              value={newUser.password}
-              onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
-              fullWidth
-              required
-            />
+          <Typography variant="caption" sx={{ color: '#484F58', display: 'block', mb: 2 }}>Create a new user account for RNAdetector.</Typography>
+          <Stack spacing={2.5}>
+            <TextField label="Name" value={newUser.name} onChange={(e) => setNewUser((p) => ({ ...p, name: e.target.value }))} fullWidth required size="small"
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px', '& fieldset': { borderColor: 'rgba(88, 166, 255, 0.12)' }, '&:hover fieldset': { borderColor: 'rgba(88, 166, 255, 0.25)' } } }} />
+            <TextField label="Email" type="email" value={newUser.email} onChange={(e) => setNewUser((p) => ({ ...p, email: e.target.value }))} fullWidth required size="small"
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px', '& fieldset': { borderColor: 'rgba(88, 166, 255, 0.12)' }, '&:hover fieldset': { borderColor: 'rgba(88, 166, 255, 0.25)' } } }} />
+            <TextField label="Password" type="password" value={newUser.password} onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))} fullWidth required size="small"
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px', '& fieldset': { borderColor: 'rgba(88, 166, 255, 0.12)' }, '&:hover fieldset': { borderColor: 'rgba(88, 166, 255, 0.25)' } } }} />
             <FormControlLabel
-              control={
-                <Switch
-                  checked={newUser.admin}
-                  onChange={(e) => setNewUser((p) => ({ ...p, admin: e.target.checked }))}
-                />
-              }
-              label="Administrator"
+              control={<Switch checked={newUser.admin} onChange={(e) => setNewUser((p) => ({ ...p, admin: e.target.checked }))} />}
+              label={<Typography variant="body2" sx={{ color: '#C9D1D9' }}>Administrator</Typography>}
             />
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowAddUser(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleAddUser}
-            disabled={!newUser.name || !newUser.email || !newUser.password}
-          >
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setShowAddUser(false)} sx={{ color: '#8B949E', borderRadius: '8px', '&:hover': { bgcolor: 'rgba(139, 148, 158, 0.08)' } }}>Cancel</Button>
+          <Button variant="contained" onClick={handleAddUser} disabled={!newUser.name || !newUser.email || !newUser.password}
+            sx={{ borderRadius: '8px', bgcolor: 'rgba(88, 166, 255, 0.15)', color: '#58A6FF', boxShadow: 'none', fontWeight: 600, transition: 'all 200ms ease',
+              '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.25)', boxShadow: '0 0 12px rgba(88, 166, 255, 0.15)' },
+              '&.Mui-disabled': { bgcolor: 'rgba(88, 166, 255, 0.06)', color: 'rgba(88, 166, 255, 0.3)' } }}>
             Create User
           </Button>
         </DialogActions>
@@ -502,15 +506,20 @@ function StatusItem({
 }) {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+      <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500, display: 'block', mb: 0.5 }}>
         {label}
       </Typography>
-      <Stack direction="row" alignItems="center" spacing={0.5}>
+      <Stack direction="row" alignItems="center" spacing={0.75}>
         {icon}
         {chipColor ? (
-          <Chip label={value} size="small" color={chipColor} sx={{ fontWeight: 600 }} />
+          <Chip label={value} size="small" sx={{
+            fontWeight: 600, fontSize: '0.72rem',
+            bgcolor: chipColor === 'success' ? 'rgba(63, 185, 80, 0.1)' : 'rgba(248, 81, 73, 0.1)',
+            color: chipColor === 'success' ? '#3FB950' : '#F85149',
+            border: `1px solid ${chipColor === 'success' ? 'rgba(63, 185, 80, 0.15)' : 'rgba(248, 81, 73, 0.15)'}`,
+          }} />
         ) : (
-          <Typography variant="body1" fontWeight={600}>
+          <Typography variant="body1" sx={{ fontWeight: 600, color: '#C9D1D9' }}>
             {value}
           </Typography>
         )}

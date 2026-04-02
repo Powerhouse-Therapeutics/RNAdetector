@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 ##############################################################################
 # Options:
@@ -85,18 +86,25 @@ fi
 
 #### Trimming and adaptors removing ####
 INPUT_1_NAME=$(basename -- "$INPUT_1")
-INPUT_1_EXTENSION="${INPUT_1_NAME##*.}"
-INPUT_1_BASENAME=$(basename "$INPUT_1_NAME" ".$INPUT_1_EXTENSION")
-if [ $PAIRED = "true" ]; then
+# Strip double extensions (.fastq.gz, .fq.gz) to match trim_galore naming
+INPUT_1_BASENAME="$INPUT_1_NAME"
+INPUT_1_BASENAME="${INPUT_1_BASENAME%.gz}"
+INPUT_1_BASENAME="${INPUT_1_BASENAME%.bz2}"
+INPUT_1_BASENAME="${INPUT_1_BASENAME%.fastq}"
+INPUT_1_BASENAME="${INPUT_1_BASENAME%.fq}"
+if [ "$PAIRED" = "true" ]; then
   # shellcheck disable=SC2086
   if ! trim_galore -j $THREADS -q $QUALITY --paired -o "$OUTPUT" --dont_gzip --phred33 --length $LENGTH --no_report_file $OTHER_ARGS "$INPUT_1" "$INPUT_2"; then
     echo "An error occurred during trim_galore execution!"
     exit 10
   fi
-  if [ $HARD_TRIM = "true" ]; then
+  if [ "$HARD_TRIM" = "true" ]; then
     INPUT_2_NAME=$(basename -- "$INPUT_2")
-    INPUT_2_EXTENSION="${INPUT_2_NAME##*.}"
-    INPUT_2_BASENAME=$(basename "$INPUT_2_NAME" ".$INPUT_2_EXTENSION")
+    INPUT_2_BASENAME="$INPUT_2_NAME"
+    INPUT_2_BASENAME="${INPUT_2_BASENAME%.gz}"
+    INPUT_2_BASENAME="${INPUT_2_BASENAME%.bz2}"
+    INPUT_2_BASENAME="${INPUT_2_BASENAME%.fastq}"
+    INPUT_2_BASENAME="${INPUT_2_BASENAME%.fq}"
     # shellcheck disable=SC2086
     if ! trim_galore -j $THREADS --paired -o "$OUTPUT" --dont_gzip --hardtrim5 $LENGTH --no_report_file $OTHER_ARGS "$OUTPUT/${INPUT_1_BASENAME}_val_1.fq" "$OUTPUT/${INPUT_2_BASENAME}_val_2.fq"; then
       echo "Failed to run trim_galore"
@@ -123,7 +131,7 @@ else
     echo "An error occurred during trim_galore execution!"
     exit 10
   fi
-  if [ $HARD_TRIM = "true" ]; then
+  if [ "$HARD_TRIM" = "true" ]; then
     # shellcheck disable=SC2086
     if ! trim_galore -j $THREADS -o "$OUTPUT" --dont_gzip --hardtrim5 $LENGTH --no_report_file $OTHER_ARGS "$OUTPUT/${INPUT_1_BASENAME}_trimmed.fq"; then
       echo "Failed to run trim_galore"

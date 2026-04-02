@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   List,
@@ -28,6 +28,9 @@ import {
   Search as SearchIcon,
   ArrowBack as ArrowBackIcon,
   Clear as ClearIcon,
+  Description as TsvIcon,
+  DataObject as FastqIcon,
+  ViewInAr as BamIcon,
 } from '@mui/icons-material';
 import type { FileEntry, Volume } from '@/types';
 import { listVolumes, browseDirectory, searchFiles } from '@/api/files';
@@ -37,6 +40,23 @@ const FILE_FILTERS: Record<string, string[]> = {
   FASTQ: ['.fastq', '.fq', '.fastq.gz', '.fq.gz'],
   BAM: ['.bam', '.sam', '.cram'],
   TSV: ['.tsv', '.csv', '.txt'],
+};
+
+const getFileIcon = (name: string) => {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.fastq') || lower.endsWith('.fq') || lower.endsWith('.fastq.gz') || lower.endsWith('.fq.gz')) {
+    return <FastqIcon sx={{ color: '#58A6FF', fontSize: 20 }} />;
+  }
+  if (lower.endsWith('.bam') || lower.endsWith('.sam') || lower.endsWith('.cram')) {
+    return <BamIcon sx={{ color: '#BC8CFF', fontSize: 20 }} />;
+  }
+  if (lower.endsWith('.tsv') || lower.endsWith('.csv') || lower.endsWith('.txt')) {
+    return <TsvIcon sx={{ color: '#3FB950', fontSize: 20 }} />;
+  }
+  if (lower.endsWith('.gz') || lower.endsWith('.zip') || lower.endsWith('.tar')) {
+    return <FileIcon sx={{ color: '#D29922', fontSize: 20 }} />;
+  }
+  return <FileIcon sx={{ color: '#484F58', fontSize: 20 }} />;
 };
 
 interface ServerFileBrowserProps {
@@ -61,21 +81,32 @@ export default function ServerFileBrowser({
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
-    listVolumes().then((vols: Volume[]) => {
-      setVolumes(vols);
-      if (initialPath) {
-        // Find the volume that contains this path
-        const match = vols.find((v) => initialPath.startsWith(v.path));
-        setSelectedVolume(match?.path ?? vols[0]?.path ?? '');
-        setCurrentPath(initialPath);
-      } else if (vols.length > 0) {
-        // Default to last volume (typically the data volume)
-        const defaultVol = vols[vols.length - 1];
-        setSelectedVolume(defaultVol.path);
-        setCurrentPath(defaultVol.path);
-      }
-    });
+    abortRef.current = new AbortController();
+    const { signal } = abortRef.current;
+
+    listVolumes(signal)
+      .then((vols: Volume[]) => {
+        if (signal.aborted) return;
+        const safeVols = Array.isArray(vols) ? vols : [];
+        setVolumes(safeVols);
+        if (initialPath) {
+          const match = safeVols.find((v) => initialPath.startsWith(v.path));
+          setSelectedVolume(match?.path ?? safeVols[0]?.path ?? '');
+          setCurrentPath(initialPath);
+        } else if (safeVols.length > 0) {
+          const defaultVol = safeVols[safeVols.length - 1];
+          setSelectedVolume(defaultVol.path);
+          setCurrentPath(defaultVol.path);
+        }
+      })
+      .catch(() => {
+        if (!signal.aborted) setEntries([]);
+      });
+
+    return () => { abortRef.current?.abort(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -83,9 +114,12 @@ export default function ServerFileBrowser({
     setLoading(true);
     try {
       const result = await browseDirectory(path);
-      setEntries(result.data ?? result);
+      const data = result?.data ?? result;
+      setEntries(Array.isArray(data) ? data : []);
       setCurrentPath(path);
       setSearchQuery('');
+    } catch {
+      setEntries([]);
     } finally {
       setLoading(false);
     }
@@ -105,7 +139,9 @@ export default function ServerFileBrowser({
     setLoading(true);
     try {
       const results = await searchFiles(currentPath, searchQuery);
-      setEntries(results);
+      setEntries(Array.isArray(results) ? results : []);
+    } catch {
+      setEntries([]);
     } finally {
       setLoading(false);
     }
@@ -168,21 +204,31 @@ export default function ServerFileBrowser({
   return (
     <Paper
       sx={{
-        p: 2,
-        background: 'rgba(17, 24, 39, 0.8)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(0, 229, 255, 0.1)',
+        p: 2.5,
+        background: '#0D1117',
+        border: '1px solid #21262D',
+        borderRadius: '12px',
         minHeight: 400,
       }}
     >
       {/* Controls */}
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center">
+      <Stack direction="row" spacing={1.5} sx={{ mb: 2 }} alignItems="center">
         <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>Volume</InputLabel>
+          <InputLabel sx={{ color: '#8B949E' }}>Volume</InputLabel>
           <Select
             value={selectedVolume}
             label="Volume"
             onChange={(e) => handleVolumeChange(e.target.value)}
+            sx={{
+              borderRadius: '8px',
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#30363D',
+                transition: 'border-color 200ms ease',
+              },
+              '&:hover .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#58A6FF',
+              },
+            }}
           >
             {volumes.map((v) => (
               <MenuItem key={v.id} value={v.path}>
@@ -194,8 +240,22 @@ export default function ServerFileBrowser({
 
         {!allowedExtensions && (
           <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Filter</InputLabel>
-            <Select value={filter} label="Filter" onChange={(e) => setFilter(e.target.value)}>
+            <InputLabel sx={{ color: '#8B949E' }}>Filter</InputLabel>
+            <Select
+              value={filter}
+              label="Filter"
+              onChange={(e) => setFilter(e.target.value)}
+              sx={{
+                borderRadius: '8px',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#30363D',
+                  transition: 'border-color 200ms ease',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#58A6FF',
+                },
+              }}
+            >
               {Object.keys(FILE_FILTERS).map((key) => (
                 <MenuItem key={key} value={key}>
                   {key}
@@ -211,11 +271,23 @@ export default function ServerFileBrowser({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          sx={{ flex: 1 }}
+          sx={{
+            flex: 1,
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '8px',
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#30363D',
+                transition: 'border-color 200ms ease',
+              },
+              '&:hover .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#58A6FF',
+              },
+            },
+          }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                <SearchIcon fontSize="small" sx={{ color: '#484F58' }} />
               </InputAdornment>
             ),
             endAdornment: searchQuery ? (
@@ -226,6 +298,7 @@ export default function ServerFileBrowser({
                     setSearchQuery('');
                     browse(currentPath);
                   }}
+                  sx={{ color: '#8B949E' }}
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -236,7 +309,20 @@ export default function ServerFileBrowser({
       </Stack>
 
       {/* Breadcrumbs */}
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1}
+        sx={{
+          mb: 2,
+          py: 1,
+          px: 1.5,
+          background: '#161B22',
+          borderRadius: '8px',
+          border: '1px solid #21262D',
+          overflow: 'auto',
+        }}
+      >
         <IconButton
           size="small"
           onClick={() => {
@@ -244,16 +330,34 @@ export default function ServerFileBrowser({
             if (parent.length >= selectedVolume.length) handleNavigate(parent);
           }}
           disabled={currentPath === selectedVolume}
-          sx={{ color: 'primary.main' }}
+          sx={{
+            color: '#58A6FF',
+            transition: 'all 200ms ease',
+            '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.1)' },
+            '&.Mui-disabled': { color: '#30363D' },
+          }}
         >
           <ArrowBackIcon fontSize="small" />
         </IconButton>
-        <Breadcrumbs sx={{ '& .MuiBreadcrumbs-separator': { color: 'text.secondary' } }}>
+        <Breadcrumbs
+          sx={{
+            '& .MuiBreadcrumbs-separator': { color: '#30363D' },
+            '& .MuiBreadcrumbs-li': { whiteSpace: 'nowrap' },
+          }}
+        >
           {pathSegments.map((segment, idx) => {
             const segPath = '/' + pathSegments.slice(0, idx + 1).join('/');
             const isLast = idx === pathSegments.length - 1;
             return isLast ? (
-              <Typography key={segPath} variant="body2" color="primary.main" fontWeight={600}>
+              <Typography
+                key={segPath}
+                variant="body2"
+                sx={{
+                  color: '#C9D1D9',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                }}
+              >
                 {segment}
               </Typography>
             ) : (
@@ -262,7 +366,12 @@ export default function ServerFileBrowser({
                 component="button"
                 variant="body2"
                 underline="hover"
-                color="text.secondary"
+                sx={{
+                  color: '#8B949E',
+                  fontSize: '0.82rem',
+                  transition: 'color 200ms ease',
+                  '&:hover': { color: '#58A6FF' },
+                }}
                 onClick={() => handleNavigate(segPath)}
               >
                 {segment}
@@ -275,7 +384,7 @@ export default function ServerFileBrowser({
       {/* File listing */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress size={32} sx={{ color: 'primary.main' }} />
+          <CircularProgress size={28} sx={{ color: '#58A6FF' }} />
         </Box>
       ) : (
         <List
@@ -283,15 +392,26 @@ export default function ServerFileBrowser({
           sx={{
             maxHeight: 360,
             overflow: 'auto',
-            border: '1px solid rgba(0, 229, 255, 0.06)',
-            borderRadius: 2,
+            borderRadius: '8px',
+            border: '1px solid #21262D',
+            bgcolor: '#161B22',
+            '&::-webkit-scrollbar': {
+              width: 6,
+            },
+            '&::-webkit-scrollbar-track': {
+              bgcolor: 'transparent',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              bgcolor: '#30363D',
+              borderRadius: 3,
+            },
           }}
         >
           {filteredEntries.length === 0 && (
             <ListItem>
               <ListItemText
                 primary="No files found"
-                sx={{ textAlign: 'center', color: 'text.secondary' }}
+                sx={{ textAlign: 'center', color: '#484F58', py: 4 }}
               />
             </ListItem>
           )}
@@ -302,10 +422,21 @@ export default function ServerFileBrowser({
                 key={entry.path}
                 onClick={() => handleFileToggle(entry)}
                 sx={{
-                  borderRadius: 1,
-                  mb: 0.5,
-                  '&:hover': { bgcolor: 'rgba(0, 229, 255, 0.06)' },
-                  ...(isSelected && { bgcolor: 'rgba(0, 229, 255, 0.1)' }),
+                  borderRadius: '6px',
+                  mx: 0.5,
+                  mb: 0.25,
+                  py: 0.75,
+                  transition: 'all 200ms ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(88, 166, 255, 0.06)',
+                  },
+                  ...(isSelected && {
+                    bgcolor: 'rgba(88, 166, 255, 0.1)',
+                    border: '1px solid rgba(88, 166, 255, 0.2)',
+                  }),
+                  ...(!isSelected && {
+                    border: '1px solid transparent',
+                  }),
                 }}
               >
                 {entry.type === 'file' && multiple && (
@@ -314,23 +445,34 @@ export default function ServerFileBrowser({
                     checked={isSelected}
                     size="small"
                     sx={{
-                      color: 'rgba(0, 229, 255, 0.4)',
-                      '&.Mui-checked': { color: '#00E5FF' },
+                      color: '#30363D',
+                      transition: 'color 200ms ease',
+                      '&.Mui-checked': { color: '#58A6FF' },
                     }}
                   />
                 )}
-                <ListItemIcon sx={{ minWidth: 36 }}>
+                <ListItemIcon sx={{ minWidth: 32 }}>
                   {entry.type === 'directory' ? (
-                    <FolderIcon sx={{ color: '#FBBF24' }} />
+                    <FolderIcon sx={{ color: '#D29922', fontSize: 20 }} />
                   ) : (
-                    <FileIcon sx={{ color: 'text.secondary' }} />
+                    getFileIcon(entry.name)
                   )}
                 </ListItemIcon>
                 <ListItemText
                   primary={entry.name}
                   secondary={entry.type === 'file' ? formatSize(entry.size) : null}
-                  primaryTypographyProps={{ variant: 'body2' }}
-                  secondaryTypographyProps={{ variant: 'caption' }}
+                  primaryTypographyProps={{
+                    variant: 'body2',
+                    sx: {
+                      color: entry.type === 'directory' ? '#C9D1D9' : '#8B949E',
+                      fontWeight: entry.type === 'directory' ? 500 : 400,
+                      fontSize: '0.85rem',
+                    },
+                  }}
+                  secondaryTypographyProps={{
+                    variant: 'caption',
+                    sx: { color: '#484F58', fontSize: '0.72rem' },
+                  }}
                 />
               </ListItemButton>
             );
@@ -340,7 +482,7 @@ export default function ServerFileBrowser({
 
       {/* Selected files chips */}
       {selectedFiles.length > 0 && (
-        <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 2 }}>
+        <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mt: 2 }}>
           {selectedFiles.map((f) => (
             <Chip
               key={f.path}
@@ -348,10 +490,18 @@ export default function ServerFileBrowser({
               size="small"
               onDelete={() => handleRemoveFile(f.path)}
               sx={{
-                bgcolor: 'rgba(0, 229, 255, 0.1)',
-                color: 'primary.main',
-                borderColor: 'rgba(0, 229, 255, 0.3)',
-                '& .MuiChip-deleteIcon': { color: 'rgba(0, 229, 255, 0.5)' },
+                bgcolor: 'rgba(88, 166, 255, 0.1)',
+                color: '#58A6FF',
+                borderRadius: '6px',
+                border: '1px solid rgba(88, 166, 255, 0.2)',
+                fontWeight: 500,
+                fontSize: '0.78rem',
+                transition: 'all 200ms ease',
+                '& .MuiChip-deleteIcon': {
+                  color: 'rgba(88, 166, 255, 0.5)',
+                  transition: 'color 200ms ease',
+                  '&:hover': { color: '#58A6FF' },
+                },
               }}
               variant="outlined"
             />

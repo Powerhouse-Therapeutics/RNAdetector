@@ -21,7 +21,7 @@ services:
     environment:
       CLOUD_ENV: 'true'
       DB_HOST: 'mysql'
-      DB_POST: '3306'
+      DB_PORT: '3306'
       DB_DATABASE: 'rnadetector'
       DB_USERNAME: 'rnadetector'
       DB_PASSWORD: '${DB_PASSWORD}'

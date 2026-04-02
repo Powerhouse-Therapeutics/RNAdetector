@@ -28,6 +28,19 @@ class Controller extends BaseController
      *
      * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator|\Illuminate\Database\Eloquent\Builder[]|\Illuminate\Database\Eloquent\Collection
      */
+    /**
+     * Whitelist of allowed columns for filtering and ordering.
+     */
+    private static $allowedColumns = [
+        'name', 'status', 'job_type', 'sample_code', 'created_at',
+        'updated_at', 'id', 'email', 'type', 'species',
+    ];
+
+    /**
+     * Whitelist of allowed order directions.
+     */
+    private static $allowedDirections = ['asc', 'desc'];
+
     protected function handleBuilderRequest(
         Request $request,
         Builder $builder,
@@ -39,6 +52,9 @@ class Controller extends BaseController
         $filterBy = $request->get('filter_by');
         $filterValue = $request->get('filter_value');
         if ($filterBy && $filterValue) {
+            if (!in_array($filterBy, self::$allowedColumns, true)) {
+                abort(400, 'Invalid filter_by column.');
+            }
             $builder->where($filterBy, 'LIKE', '%' . $filterValue . '%');
         }
         $orderBy = (array)($request->get('order') ?? [$defaultOrderField]);
@@ -46,7 +62,14 @@ class Controller extends BaseController
         if (!empty($orderBy)) {
             for ($i = 0, $count = count($orderBy); $i < $count; $i++) {
                 if ($orderBy[$i]) {
-                    $builder->orderBy($orderBy[$i], $orderDirection[$i] ?? $defaultOrdering);
+                    if (!in_array($orderBy[$i], self::$allowedColumns, true)) {
+                        abort(400, 'Invalid order column.');
+                    }
+                    $dir = strtolower($orderDirection[$i] ?? $defaultOrdering);
+                    if (!in_array($dir, self::$allowedDirections, true)) {
+                        $dir = $defaultOrdering;
+                    }
+                    $builder->orderBy($orderBy[$i], $dir);
                 }
             }
         }

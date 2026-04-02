@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   Visibility, Download, Delete, Refresh,
-  KeyboardArrowDown, KeyboardArrowUp, ErrorOutline,
+  KeyboardArrowDown, ErrorOutline,
 } from '@mui/icons-material';
 import type { Job, JobStatus } from '@/types';
 import { fetchJobs, fetchJob, deleteJob } from '@/api/jobs';
@@ -20,18 +20,23 @@ import useNotificationStore from '@/stores/notificationStore';
 const ACTIVE_POLL_MS = 5_000;
 const IDLE_POLL_MS = 15_000;
 
-const pulse = keyframes`
-  0%   { opacity: 1; }
-  50%  { opacity: 0.4; }
-  100% { opacity: 1; }
+const subtlePulse = keyframes`
+  0%   { box-shadow: 0 0 0 0 currentColor; }
+  50%  { box-shadow: 0 0 6px 0 currentColor; }
+  100% { box-shadow: 0 0 0 0 currentColor; }
+`;
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 `;
 
 const statusConfig: Record<JobStatus, { color: string; label: string }> = {
-  completed:  { color: '#10B981', label: 'Completed' },
-  processing: { color: '#00E5FF', label: 'Processing' },
-  queued:     { color: '#F59E0B', label: 'Queued' },
-  failed:     { color: '#EF4444', label: 'Failed' },
-  ready:      { color: '#9CA3AF', label: 'Ready' },
+  completed:  { color: '#3FB950', label: 'Completed' },
+  processing: { color: '#58A6FF', label: 'Processing' },
+  queued:     { color: '#D29922', label: 'Queued' },
+  failed:     { color: '#F85149', label: 'Failed' },
+  ready:      { color: '#8B949E', label: 'Ready' },
 };
 
 const typeLabels: Record<string, string> = {
@@ -78,6 +83,62 @@ function estimateRemaining(elapsed: number, progress: number | null): string | n
   return formatDuration(remaining);
 }
 
+/** Format relative time e.g. "2m ago", "3h ago" */
+function relativeTime(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  return `${days}d ago`;
+}
+
+/** Syntax-highlight log lines: timestamps, errors, warnings */
+function highlightLog(log: string): React.ReactNode[] {
+  return log.split('\n').map((line, i) => {
+    const isError = /error|fail|exception|fatal/i.test(line);
+    const isWarning = /warn|warning/i.test(line);
+    const hasTimestamp = /^\[?\d{4}[-/]\d{2}[-/]\d{2}[\sT]\d{2}:\d{2}/.test(line)
+      || /^\d{2}:\d{2}:\d{2}/.test(line);
+
+    let lineColor = 'rgba(201, 209, 217, 0.7)';
+    if (isError) lineColor = '#F85149';
+    else if (isWarning) lineColor = '#D29922';
+
+    let styledLine: React.ReactNode;
+
+    if (hasTimestamp) {
+      const tsMatch = line.match(/^(\[?\d{4}[-/]\d{2}[-/]\d{2}[\sT]\d{2}:\d{2}[:\d.]*\]?|\d{2}:\d{2}:\d{2})/);
+      if (tsMatch) {
+        const ts = tsMatch[0];
+        const rest = line.slice(ts.length);
+        styledLine = (
+          <>
+            <span style={{ color: '#8B949E' }}>{ts}</span>
+            <span style={{ color: lineColor }}>{rest}</span>
+          </>
+        );
+      } else {
+        styledLine = <span style={{ color: lineColor }}>{line}</span>;
+      }
+    } else {
+      styledLine = <span style={{ color: lineColor }}>{line}</span>;
+    }
+
+    return (
+      <div key={i} style={{ minHeight: '1.5em' }}>
+        <span style={{ color: '#484F58', userSelect: 'none', display: 'inline-block', width: 40, textAlign: 'right', marginRight: 12, fontSize: '0.68rem' }}>
+          {i + 1}
+        </span>
+        {styledLine}
+      </div>
+    );
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /*  Detail panel                                                       */
 /* ------------------------------------------------------------------ */
@@ -100,54 +161,82 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
     ? Object.entries(j.parameters) : [];
 
   return (
-    <Box sx={{ px: 3, py: 2, background: 'rgba(17, 24, 39, 0.4)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+    <Box
+      sx={{
+        px: 3,
+        py: 2.5,
+        background: 'rgba(13, 17, 23, 0.6)',
+        borderTop: '1px solid rgba(88, 166, 255, 0.06)',
+        animation: `${fadeIn} 200ms ease`,
+      }}
+    >
       {/* Progress bar for active jobs */}
       {isActive && (
-        <Box sx={{ mb: 2 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+        <Box sx={{ mb: 2.5 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.75 }}>
+            <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500 }}>
               Progress
             </Typography>
-            <Typography variant="caption" sx={{ color: '#00E5FF', fontFamily: 'JetBrains Mono' }}>
+            <Typography variant="caption" sx={{ color: '#58A6FF', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
               {progress !== null ? `${progress}%` : 'Indeterminate'}
             </Typography>
           </Stack>
-          <LinearProgress
-            variant={progress !== null ? 'determinate' : 'indeterminate'}
-            value={progress ?? 0}
-            sx={{
-              height: 6,
-              borderRadius: 3,
-              bgcolor: 'rgba(0, 229, 255, 0.08)',
-              '& .MuiLinearProgress-bar': {
-                borderRadius: 3,
-                bgcolor: '#00E5FF',
-              },
-            }}
-          />
+          <Box sx={{ position: 'relative', height: 6, borderRadius: 3, bgcolor: 'rgba(88, 166, 255, 0.06)', overflow: 'hidden' }}>
+            {progress !== null ? (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  height: '100%',
+                  width: `${progress}%`,
+                  borderRadius: 3,
+                  bgcolor: '#58A6FF',
+                  transition: 'width 500ms cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 0 8px rgba(88, 166, 255, 0.3)',
+                }}
+              />
+            ) : (
+              <LinearProgress
+                variant="indeterminate"
+                sx={{
+                  height: 6,
+                  borderRadius: 3,
+                  bgcolor: 'transparent',
+                  '& .MuiLinearProgress-bar': { borderRadius: 3, bgcolor: '#58A6FF' },
+                }}
+              />
+            )}
+          </Box>
         </Box>
       )}
 
       {/* Time info */}
-      <Stack direction="row" spacing={4} sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={4} sx={{ mb: 2.5 }}>
         <Box>
-          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>Elapsed</Typography>
-          <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.8rem', color: 'rgba(255,255,255,0.85)' }}>
+          <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500, display: 'block', mb: 0.25 }}>
+            Elapsed
+          </Typography>
+          <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.82rem', color: '#C9D1D9', fontWeight: 500 }}>
             {formatDuration(elapsed)}
           </Typography>
         </Box>
         {remaining && (
           <Box>
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>Est. Remaining</Typography>
-            <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.8rem', color: '#00E5FF' }}>
+            <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500, display: 'block', mb: 0.25 }}>
+              Est. Remaining
+            </Typography>
+            <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.82rem', color: '#58A6FF', fontWeight: 500 }}>
               ~{remaining}
             </Typography>
           </Box>
         )}
         {j.completed_at && (
           <Box>
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>Completed</Typography>
-            <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.8rem', color: 'rgba(255,255,255,0.85)' }}>
+            <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500, display: 'block', mb: 0.25 }}>
+              Completed
+            </Typography>
+            <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.82rem', color: '#C9D1D9' }}>
               {new Date(j.completed_at).toLocaleString()}
             </Typography>
           </Box>
@@ -156,8 +245,8 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
 
       {/* Parameters summary */}
       {params.length > 0 && (
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', mb: 0.5, display: 'block' }}>
+        <Box sx={{ mb: 2.5 }}>
+          <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500, mb: 0.75, display: 'block' }}>
             Parameters
           </Typography>
           <Box
@@ -165,24 +254,25 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
               gap: 0.5,
-              background: 'rgba(17, 24, 39, 0.6)',
-              borderRadius: 1,
+              background: 'rgba(13, 17, 23, 0.5)',
+              borderRadius: '8px',
               p: 1.5,
               fontFamily: 'JetBrains Mono',
-              fontSize: '0.75rem',
+              fontSize: '0.73rem',
+              border: '1px solid rgba(88, 166, 255, 0.04)',
             }}
           >
             {params.map(([k, v]) => (
               <Box key={k} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 <Typography
                   component="span"
-                  sx={{ color: '#00E5FF', fontFamily: 'inherit', fontSize: 'inherit', mr: 0.5 }}
+                  sx={{ color: '#58A6FF', fontFamily: 'inherit', fontSize: 'inherit', mr: 0.5 }}
                 >
                   {k}:
                 </Typography>
                 <Typography
                   component="span"
-                  sx={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'inherit', fontSize: 'inherit' }}
+                  sx={{ color: 'rgba(201, 209, 217, 0.65)', fontFamily: 'inherit', fontSize: 'inherit' }}
                 >
                   {typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')}
                 </Typography>
@@ -192,36 +282,40 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
         </Box>
       )}
 
-      {/* Log readout */}
+      {/* Log readout with syntax highlighting */}
       <Box>
-        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', mb: 0.5, display: 'block' }}>
+        <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500, mb: 0.75, display: 'block' }}>
           Log
         </Typography>
         {loading && !j.log ? (
-          <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} />
+          <Skeleton variant="rectangular" height={120} sx={{ borderRadius: '8px' }} />
         ) : j.log ? (
           <Box
             sx={{
-              maxHeight: 320,
+              maxHeight: 340,
               overflow: 'auto',
-              background: 'rgba(0, 0, 0, 0.4)',
-              borderRadius: 1,
-              p: 1.5,
+              background: 'rgba(13, 17, 23, 0.8)',
+              borderRadius: '8px',
+              p: 2,
               fontFamily: 'JetBrains Mono',
               fontSize: '0.72rem',
               lineHeight: 1.6,
-              color: 'rgba(255,255,255,0.75)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
-              border: '1px solid rgba(255,255,255,0.06)',
+              border: '1px solid rgba(88, 166, 255, 0.06)',
               '&::-webkit-scrollbar': { width: 6 },
-              '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,229,255,0.25)', borderRadius: 3 },
+              '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+              '&::-webkit-scrollbar-thumb': {
+                bgcolor: 'rgba(88, 166, 255, 0.15)',
+                borderRadius: 3,
+                '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.25)' },
+              },
             }}
           >
-            {j.log}
+            {highlightLog(j.log)}
           </Box>
         ) : (
-          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>
+          <Typography variant="body2" sx={{ color: '#484F58', fontStyle: 'italic' }}>
             No log output available.
           </Typography>
         )}
@@ -260,8 +354,8 @@ export default function JobsPage() {
   const loadJobs = useCallback(async () => {
     try {
       const res = await fetchJobs(page + 1, rowsPerPage, { field: 'created_at', direction: 'desc' });
-      setJobs(res.data);
-      setTotal(res.total);
+      setJobs(Array.isArray(res.data) ? res.data : []);
+      setTotal(res.total ?? 0);
     } catch {
       notify('Failed to load jobs', 'error');
     } finally {
@@ -329,6 +423,7 @@ export default function JobsPage() {
 
   /* ---- Delete ---- */
   const handleDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this job?')) return;
     try {
       await deleteJob(id);
       notify('Job deleted', 'success');
@@ -363,16 +458,17 @@ export default function JobsPage() {
     const progress = parseProgress(job.log);
 
     let label = sc.label;
-    let extraSx: Record<string, unknown> = {};
+    let isAnimated = false;
 
     switch (job.status) {
       case 'processing':
         label = progress !== null ? `Processing ${progress}%` : 'Processing';
-        extraSx = { animation: `${pulse} 1.8s ease-in-out infinite` };
+        isAnimated = true;
         break;
       case 'queued': {
         const pos = queuePositions.get(job.id);
         if (pos) label = `Queued #${pos}`;
+        isAnimated = true;
         break;
       }
       case 'completed': {
@@ -394,16 +490,21 @@ export default function JobsPage() {
           label={label}
           size="small"
           sx={{
-            bgcolor: `${sc.color}20`,
+            bgcolor: `${sc.color}15`,
             color: sc.color,
             fontWeight: 600,
             fontFamily: 'JetBrains Mono',
             fontSize: '0.72rem',
-            ...extraSx,
+            letterSpacing: '0.01em',
+            border: `1px solid ${sc.color}20`,
+            transition: 'all 200ms ease',
+            ...(isAnimated && {
+              animation: `${subtlePulse} 2.4s ease-in-out infinite`,
+            }),
           }}
         />
         {job.status === 'failed' && (
-          <ErrorOutline sx={{ color: '#EF4444', fontSize: 16 }} />
+          <ErrorOutline sx={{ color: '#F85149', fontSize: 16 }} />
         )}
       </Stack>
     );
@@ -414,14 +515,29 @@ export default function JobsPage() {
   /* ---------------------------------------------------------------- */
 
   return (
-    <Box>
+    <Box sx={{ animation: `${fadeIn} 300ms ease` }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          Jobs
-        </Typography>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <FormControl size="small" sx={{ minWidth: 140 }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 700, color: '#C9D1D9', letterSpacing: '-0.01em' }}>
+            Jobs
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#8B949E', mt: 0.25 }}>
+            {total > 0 ? `${total} total jobs` : 'Manage analysis jobs'}
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <FormControl
+            size="small"
+            sx={{
+              minWidth: 140,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '8px',
+                '& fieldset': { borderColor: 'rgba(88, 166, 255, 0.12)' },
+                '&:hover fieldset': { borderColor: 'rgba(88, 166, 255, 0.25)' },
+              },
+            }}
+          >
             <InputLabel>Status</InputLabel>
             <Select
               value={statusFilter}
@@ -437,7 +553,19 @@ export default function JobsPage() {
             </Select>
           </FormControl>
           <Tooltip title="Refresh">
-            <IconButton onClick={loadJobs} sx={{ color: 'primary.main' }}>
+            <IconButton
+              onClick={loadJobs}
+              sx={{
+                color: '#58A6FF',
+                bgcolor: 'rgba(88, 166, 255, 0.06)',
+                borderRadius: '8px',
+                transition: 'all 200ms ease',
+                '&:hover': {
+                  bgcolor: 'rgba(88, 166, 255, 0.12)',
+                  transform: 'rotate(45deg)',
+                },
+              }}
+            >
               <Refresh />
             </IconButton>
           </Tooltip>
@@ -445,16 +573,24 @@ export default function JobsPage() {
       </Box>
 
       {/* Table */}
-      <TableContainer component={Paper} sx={{ background: 'rgba(17, 24, 39, 0.6)', backdropFilter: 'blur(12px)' }}>
+      <TableContainer
+        component={Paper}
+        sx={{
+          background: '#161B22',
+          borderRadius: '12px',
+          border: '1px solid rgba(240, 246, 252, 0.1)',
+          overflow: 'hidden',
+        }}
+      >
         <Table>
           <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 600, width: 48 }} />
-              <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
-              <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
+            <TableRow sx={{ '& th': { borderBottom: '1px solid rgba(88, 166, 255, 0.08)' } }}>
+              <TableCell sx={{ fontWeight: 600, width: 48, color: '#8B949E' }} />
+              <TableCell sx={{ fontWeight: 600, color: '#8B949E', fontSize: '0.78rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Name</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#8B949E', fontSize: '0.78rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Type</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#8B949E', fontSize: '0.78rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#8B949E', fontSize: '0.78rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Created</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#8B949E', fontSize: '0.78rem', letterSpacing: '0.03em', textTransform: 'uppercase' }} align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -462,14 +598,18 @@ export default function JobsPage() {
               [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
                   {[...Array(6)].map((__, j) => (
-                    <TableCell key={j}><Skeleton variant="text" /></TableCell>
+                    <TableCell key={j}>
+                      <Skeleton variant="rounded" height={20} sx={{ borderRadius: 1 }} />
+                    </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : filteredJobs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                  No jobs found
+                <TableCell colSpan={6} align="center" sx={{ py: 6, borderBottom: 'none' }}>
+                  <Typography variant="body2" sx={{ color: '#484F58', fontStyle: 'italic' }}>
+                    No jobs found
+                  </Typography>
                 </TableCell>
               </TableRow>
             ) : (
@@ -480,52 +620,121 @@ export default function JobsPage() {
                     <TableRow
                       hover
                       onClick={() => toggleExpand(job.id)}
-                      sx={{ cursor: 'pointer', '& > td': { borderBottom: isExpanded ? 'none' : undefined } }}
+                      sx={{
+                        cursor: 'pointer',
+                        transition: 'background-color 200ms ease',
+                        '& > td': {
+                          borderBottom: isExpanded ? 'none' : '1px solid rgba(88, 166, 255, 0.04)',
+                          py: 1.5,
+                        },
+                        '&:hover': {
+                          bgcolor: 'rgba(88, 166, 255, 0.04) !important',
+                        },
+                      }}
                     >
                       <TableCell sx={{ width: 48, pr: 0 }}>
-                        <IconButton size="small" sx={{ color: 'rgba(255,255,255,0.5)' }}>
-                          {isExpanded ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
+                        <IconButton
+                          size="small"
+                          sx={{
+                            color: '#8B949E',
+                            transition: 'transform 200ms ease, color 200ms ease',
+                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            '&:hover': { color: '#58A6FF' },
+                          }}
+                        >
+                          <KeyboardArrowDown />
                         </IconButton>
                       </TableCell>
-                      <TableCell>{job.name}</TableCell>
                       <TableCell>
-                        <Typography variant="body2">{typeLabels[job.type] ?? job.type}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#C9D1D9' }}>
+                          {job.name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={typeLabels[job.type] ?? job.type}
+                          size="small"
+                          variant="outlined"
+                          sx={{
+                            fontSize: '0.72rem',
+                            height: 24,
+                            borderColor: 'rgba(88, 166, 255, 0.12)',
+                            color: '#8B949E',
+                            fontWeight: 500,
+                          }}
+                        />
                       </TableCell>
                       <TableCell>{renderStatusChip(job)}</TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.8rem' }}>
-                          {new Date(job.created_at).toLocaleString()}
-                        </Typography>
+                        <Stack>
+                          <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.78rem', color: '#C9D1D9' }}>
+                            {new Date(job.created_at).toLocaleDateString()}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#484F58', fontSize: '0.68rem' }}>
+                            {relativeTime(job.created_at)}
+                          </Typography>
+                        </Stack>
                       </TableCell>
                       <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                        <Tooltip title="View Report">
-                          <IconButton
-                            size="small"
-                            onClick={() => navigate(`/jobs/${job.id}/report`)}
-                            sx={{ color: 'primary.main' }}
-                          >
-                            <Visibility fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        {job.status === 'completed' && (
-                          <Tooltip title="Download">
-                            <IconButton size="small" sx={{ color: 'success.main' }}>
-                              <Download fontSize="small" />
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          <Tooltip title="View Report">
+                            <IconButton
+                              size="small"
+                              onClick={() => navigate(`/jobs/${job.id}/report`)}
+                              sx={{
+                                color: '#58A6FF',
+                                borderRadius: '6px',
+                                transition: 'all 200ms ease',
+                                '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.1)' },
+                              }}
+                            >
+                              <Visibility fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                        )}
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => handleDelete(job.id)} sx={{ color: 'error.main' }}>
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                          {job.status === 'completed' && (
+                            <Tooltip title="Download">
+                              <IconButton
+                                size="small"
+                                sx={{
+                                  color: '#3FB950',
+                                  borderRadius: '6px',
+                                  transition: 'all 200ms ease',
+                                  '&:hover': { bgcolor: 'rgba(63, 185, 80, 0.1)' },
+                                }}
+                              >
+                                <Download fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(job.id)}
+                              sx={{
+                                color: '#F85149',
+                                borderRadius: '6px',
+                                opacity: 0.6,
+                                transition: 'all 200ms ease',
+                                '&:hover': { opacity: 1, bgcolor: 'rgba(248, 81, 73, 0.1)' },
+                              }}
+                            >
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
                       </TableCell>
                     </TableRow>
 
                     {/* Expandable detail row */}
                     <TableRow>
-                      <TableCell colSpan={6} sx={{ p: 0, borderBottom: isExpanded ? undefined : 'none' }}>
-                        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                      <TableCell
+                        colSpan={6}
+                        sx={{
+                          p: 0,
+                          borderBottom: isExpanded ? '1px solid rgba(88, 166, 255, 0.06)' : 'none',
+                        }}
+                      >
+                        <Collapse in={isExpanded} timeout={250} unmountOnExit>
                           <DetailPanel job={job} detailJob={detailJob} loading={detailLoading} />
                         </Collapse>
                       </TableCell>
@@ -544,6 +753,13 @@ export default function JobsPage() {
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
           rowsPerPageOptions={[10, 15, 25, 50]}
+          sx={{
+            borderTop: '1px solid rgba(88, 166, 255, 0.06)',
+            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+              color: '#8B949E',
+              fontSize: '0.8rem',
+            },
+          }}
         />
       </TableContainer>
     </Box>

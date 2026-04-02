@@ -74,7 +74,7 @@ trait ConvertsBamToFastqTrait
         if (!$paired && !file_exists($firstFastQ)) {
             throw new ProcessingJobException('Unable to convert bam to fastq.');
         }
-        if ($paired && !file_exists($firstFastQ) && !file_exists($secondFastQ)) {
+        if ($paired && (!file_exists($firstFastQ) || !file_exists($secondFastQ))) {
             throw new ProcessingJobException('Unable to convert bam to fastq.');
         }
         // $model->appendLog($output);

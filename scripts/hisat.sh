@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 ##############################################################################
 # Options:
@@ -68,7 +69,7 @@ fi
 
 #### Alignment ####
 TMP_OUTPUT="$(dirname "$OUTPUT")/temp.bam"
-if [ $PAIRED = "true" ]; then
+if [ "$PAIRED" = "true" ]; then
   # shellcheck disable=SC2086
   if ! hisat2 $OTHER_ARGS -p "$THREADS" -x "$REF_GENOME" -1 "$INPUT_1" -2 "$INPUT_2" | samtools view -Sbh >"$TMP_OUTPUT"; then
     echo "An error occurred during HISAT 2 execution!"
@@ -98,4 +99,4 @@ if [ ! -f "$OUTPUT" ]; then
   exit 10
 fi
 
-rm "$TMP_OUTPUT"
+[ -f "$TMP_OUTPUT" ] && rm "$TMP_OUTPUT"

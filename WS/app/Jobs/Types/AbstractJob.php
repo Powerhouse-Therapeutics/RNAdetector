@@ -217,7 +217,8 @@ abstract class AbstractJob
      */
     public function mutateOutput(): array
     {
-        return $this->model->job_output;
+        $output = $this->model->job_output;
+        return is_array($output) ? $output : [];
     }
 
     /**
@@ -248,11 +249,20 @@ abstract class AbstractJob
      */
     public function moveFile(?string $source, string $destination): void
     {
-        if (!$source) {
+        if (!$source || empty($destination)) {
             return;
         }
-        $absoluteSourceFilename = realpath($this->model->getAbsoluteJobDirectory() . '/' . $source);
+        $jobDir = $this->model->getAbsoluteJobDirectory();
+        if (empty($jobDir) || !is_dir($jobDir)) {
+            return;
+        }
+        $absoluteSourceFilename = realpath($jobDir . '/' . $source);
         if ($absoluteSourceFilename === false) {
+            return;
+        }
+        // Ensure destination directory exists
+        $destDir = dirname($destination);
+        if (!is_dir($destDir)) {
             return;
         }
         @rename($absoluteSourceFilename, $destination);
@@ -269,6 +279,9 @@ abstract class AbstractJob
      */
     public static function addMap(array &$command, $annotation): bool
     {
+        if ($annotation === null) {
+            return false;
+        }
         if ($annotation->map_path !== null) {
             $command[] = '-x';
             $command[] = $annotation->map_path;
@@ -304,6 +317,11 @@ abstract class AbstractJob
             return false;
         }
 
+        // Support absolute paths (files on mounted server volumes)
+        if (substr($file, 0, 1) === '/' && file_exists($file)) {
+            return true;
+        }
+
         return $this->fileExistsRelative($this->model->getJobDirectory() . '/' . $file);
     }
 
@@ -331,7 +349,27 @@ abstract class AbstractJob
      */
     public static function scriptPath(string $script): string
     {
-        return realpath(config('rnadetector.scripts_path') . '/' . $script);
+        if (empty($script)) {
+            throw new \RuntimeException('Script name cannot be empty.');
+        }
+        $scriptsBase = config('rnadetector.scripts_path');
+        if (empty($scriptsBase)) {
+            throw new \RuntimeException('Scripts path is not configured (rnadetector.scripts_path).');
+        }
+        // Prevent path traversal in script name
+        if (strpos($script, '..') !== false) {
+            throw new \RuntimeException('Invalid script name (path traversal not allowed): ' . $script);
+        }
+        $path = realpath($scriptsBase . '/' . $script);
+        if ($path === false) {
+            throw new \RuntimeException('Script not found: ' . $script);
+        }
+        // Ensure resolved path is still under the scripts directory
+        $realBase = realpath($scriptsBase);
+        if ($realBase !== false && strpos($path, $realBase) !== 0) {
+            throw new \RuntimeException('Script path resolves outside scripts directory: ' . $script);
+        }
+        return $path;
     }
 
     /**
@@ -464,10 +502,27 @@ abstract class AbstractJob
         ?callable $callback = null,
         array $errorCodeMap = []
     ): string {
+        if (empty($command)) {
+            throw new \App\Exceptions\ProcessingJobException('Cannot run an empty command.');
+        }
+        if ($cwd !== null && !is_dir($cwd)) {
+            throw new \App\Exceptions\ProcessingJobException(
+                'Working directory does not exist: ' . $cwd
+            );
+        }
         try {
-            return Utils::runCommand($command, $cwd, $timeout, $callback);
+            $result = Utils::runCommand($command, $cwd, $timeout, $callback);
+            return $result !== null ? $result : '';
         } catch (ProcessFailedException $e) {
             throw Utils::mapCommandException($e, $errorCodeMap);
+        } catch (\Symfony\Component\Process\Exception\ProcessTimedOutException $e) {
+            throw new \App\Exceptions\ProcessingJobException(
+                'Command timed out after ' . ($timeout ?? 'unknown') . ' seconds: ' . implode(' ', array_slice($command, 0, 3))
+            );
+        } catch (\Throwable $e) {
+            throw new \App\Exceptions\ProcessingJobException(
+                'Unexpected error running command: ' . $e->getMessage()
+            );
         }
     }
 

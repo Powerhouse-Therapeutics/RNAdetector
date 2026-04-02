@@ -56,9 +56,8 @@ export default function FileBrowserPage() {
             <Paper
               sx={{
                 p: 3,
-                background: 'rgba(17, 24, 39, 0.8)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(0, 229, 255, 0.1)',
+                background: '#161B22',
+                border: '1px solid rgba(240, 246, 252, 0.1)',
                 position: 'sticky',
                 top: 24,
               }}
@@ -75,7 +74,7 @@ export default function FileBrowserPage() {
                   </Typography>
                 </Stack>
 
-                <Divider sx={{ borderColor: 'rgba(0, 229, 255, 0.08)' }} />
+                <Divider sx={{ borderColor: 'rgba(240, 246, 252,0.08)' }} />
 
                 <DetailRow label="Path" value={detailFile.path} />
                 <DetailRow label="Type" value={detailFile.type === 'directory' ? 'Directory' : 'File'} />
@@ -96,7 +95,7 @@ export default function FileBrowserPage() {
                       label={getExtension(detailFile.name).toUpperCase()}
                       size="small"
                       sx={{
-                        bgcolor: 'rgba(0, 229, 255, 0.1)',
+                        bgcolor: 'rgba(240, 246, 252,0.1)',
                         color: 'primary.main',
                         fontWeight: 600,
                       }}

@@ -264,7 +264,9 @@ class CircRnaJobType extends AbstractJob
             $command[] = '-b';
             $command[] = $bedAnnotation->path;
         }
-        self::addMap($command, $bedAnnotation);
+        if ($bedAnnotation !== null) {
+            self::addMap($command, $bedAnnotation);
+        }
         AbstractJob::runCommand(
             $this->appendCustomArguments($command, 'ciri_custom_arguments'),
             $this->model->getAbsoluteJobDirectory(),
@@ -312,7 +314,14 @@ class CircRnaJobType extends AbstractJob
         }
         $configFile = $this->getJobFileAbsolute('quant_config_', '.yml');
         $name = basename($configFile, '.yml');
-        $template = file_get_contents(resource_path('templates/quant_config.yml'));
+        $templatePath = resource_path('templates/quant_config.yml');
+        if (!file_exists($templatePath)) {
+            throw new ProcessingJobException('CIRIquant configuration template not found at: ' . $templatePath);
+        }
+        $template = file_get_contents($templatePath);
+        if ($template === false) {
+            throw new ProcessingJobException('Failed to read CIRIquant configuration template.');
+        }
         $template = str_replace(
             [
                 '{NAME}',
@@ -418,12 +427,21 @@ class CircRnaJobType extends AbstractJob
         $convertBam = (bool)$this->getParameter('convertBam', false);
         $firstInputFile = $this->getParameter('firstInputFile');
         $secondInputFile = $this->getParameter('secondInputFile');
+        if (empty($inputType) || !in_array($inputType, self::VALID_INPUT_TYPES, true)) {
+            throw new ProcessingJobException('Invalid or missing input type: ' . ($inputType ?? 'null'));
+        }
+        if (empty($firstInputFile)) {
+            throw new ProcessingJobException('First input file is required.');
+        }
         $trimGaloreEnable = (bool)$this->getParameter('trimGalore.enable', $inputType === self::FASTQ);
         $trimGaloreQuality = (int)$this->getParameter('trimGalore.quality', 20);
         $trimGaloreLength = (int)$this->getParameter('trimGalore.length', 40);
         $trimGaloreHardTrim = (bool)$this->getParameter('trimGalore.hardTrim', true);
         $threads = (int)$this->getParameter('threads', 1);
         $ciriSpanningDistance = (int)$this->getParameter('ciriSpanningDistance', 200000);
+        if ($ciriSpanningDistance <= 0) {
+            throw new ProcessingJobException('CIRI spanning distance must be a positive integer, got: ' . $ciriSpanningDistance);
+        }
         $useFastqPair = (bool)$this->getParameter('useFastqPair', false);
         $useCiri1 = (bool)$this->getParameter('ciriUseVersion1', false);
         $ciriQuant = (bool)$this->getParameter('ciriQuant', false);
@@ -584,11 +602,17 @@ class CircRnaJobType extends AbstractJob
             },
             static function (Job $job) {
                 $output = $job->getOutput('harmonizedFile');
+                if (!is_array($output) || !isset($output['path'])) {
+                    return null;
+                }
 
                 return $job->absoluteJobPath($output['path']);
             },
             static function (Job $job) {
                 $output = $job->getOutput('outputFile');
+                if (!is_array($output) || !isset($output['path'])) {
+                    return null;
+                }
 
                 return $job->absoluteJobPath($output['path']);
             },

@@ -45,6 +45,12 @@ class AuthController extends Controller
             'refresh_token' => $refreshToken,
             'token_type'    => 'bearer',
             'expires_in'    => 3600,
+            'user'          => [
+                'id'    => $user->id,
+                'name'  => $user->name,
+                'email' => $user->email,
+                'admin' => $user->admin,
+            ],
         ]);
     }
 
@@ -130,6 +136,67 @@ class AuthController extends Controller
             'name'  => $user->name,
             'email' => $user->email,
             'admin' => $user->admin,
+        ]);
+    }
+
+    /**
+     * Change the authenticated user's password.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'old_password'              => 'required|string',
+            'new_password'              => 'required|string|min:8|confirmed',
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::guard('api')->user();
+
+        if (!Hash::check($request->input('old_password'), $user->password)) {
+            return response()->json(['error' => 'The old password is incorrect.'], 422);
+        }
+
+        $user->password = Hash::make($request->input('new_password'));
+        $user->save();
+
+        return response()->json(['message' => 'Password changed successfully.']);
+    }
+
+    /**
+     * Update the authenticated user's profile.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::guard('api')->user();
+
+        $request->validate([
+            'name'  => 'sometimes|required|string|max:255',
+            'email' => 'sometimes|required|email|max:255|unique:users,email,' . $user->id,
+        ]);
+
+        if ($request->has('name')) {
+            $user->name = $request->input('name');
+        }
+        if ($request->has('email')) {
+            $user->email = $request->input('email');
+        }
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user'    => [
+                'id'    => $user->id,
+                'name'  => $user->name,
+                'email' => $user->email,
+                'admin' => $user->admin,
+            ],
         ]);
     }
 

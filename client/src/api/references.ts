@@ -1,15 +1,21 @@
 import client from './client';
 import type { Reference } from '@/types';
 
-export async function fetchReferences(): Promise<Reference[]> {
-  const response = await client.get('references');
+export async function fetchReferences(signal?: AbortSignal): Promise<Reference[]> {
+  const response = await client.get('references', { signal });
   const raw = response.data;
-  return raw.data ?? raw;
+  if (!raw) return [];
+  const result = raw.data ?? raw;
+  return Array.isArray(result) ? result : [];
 }
 
-export async function fetchReference(id: number): Promise<Reference> {
-  const response = await client.get(`references/${id}`);
-  return response.data?.data ?? response.data;
+export async function fetchReference(id: number, signal?: AbortSignal): Promise<Reference> {
+  const response = await client.get(`references/${id}`, { signal });
+  const data = response.data?.data ?? response.data;
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid reference response from server.');
+  }
+  return data;
 }
 
 interface PackageInfo {
@@ -20,8 +26,10 @@ interface PackageInfo {
   installed: boolean;
 }
 
-export async function fetchPackages(): Promise<PackageInfo[]> {
-  const response = await client.get('references/packages');
+export async function fetchPackages(signal?: AbortSignal): Promise<PackageInfo[]> {
+  const response = await client.get('references/packages', { signal });
   const raw = response.data;
-  return raw.data ?? raw.packages ?? raw;
+  if (!raw) return [];
+  const result = raw.data ?? raw.packages ?? raw;
+  return Array.isArray(result) ? result : [];
 }

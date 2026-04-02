@@ -86,7 +86,7 @@ fi
 
 # Move output file from tmp directory to output directory
 mv "$OUTPUT_FILE" "$OUTPUT"
-chmod 777 "$OUTPUT"
+[ -f "$OUTPUT" ] && chmod 777 "$OUTPUT"
 
 # Removing items of tmp directory
 if [ -d "$TEMP_DIR" ]; then
@@ -112,6 +112,6 @@ if [ -n "$HARMONIZED" ]; then
       exit 9
     fi
   fi
-  chmod 777 "$HARMONIZED"
-  chmod 777 "$HARMONIZED_TX"
+  [ -f "$HARMONIZED" ] && chmod 777 "$HARMONIZED"
+  [ -f "$HARMONIZED_TX" ] && chmod 777 "$HARMONIZED_TX"
 fi

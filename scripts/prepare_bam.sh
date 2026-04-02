@@ -45,6 +45,6 @@ samtools index "$BAM" || exit_abnormal "Unable to write index file!" 104
 echo "Computing BAM coverage..."
 bamCoverage -b "$BAM" -o "$BAM.coverage.bw" || exit_abnormal "Unable to compute coverage!" 105
 
-chmod 777 "$BAM"
-chmod 777 "$BAM.bai"
-chmod 777 "$BAM.coverage.bw"
+[ -f "$BAM" ] && chmod 777 "$BAM"
+[ -f "$BAM.bai" ] && chmod 777 "$BAM.bai"
+[ -f "$BAM.coverage.bw" ] && chmod 777 "$BAM.coverage.bw"

@@ -28,9 +28,9 @@ interface ResourceSelectorProps {
 }
 
 const getSliderColor = (value: number, recommended: number, max: number): string => {
-  if (value <= recommended) return '#10B981'; // green
-  if (value <= max) return '#F59E0B'; // yellow
-  return '#EF4444'; // red
+  if (value <= recommended) return '#3FB950';
+  if (value <= max) return '#D29922';
+  return '#F85149';
 };
 
 export default function ResourceSelector({
@@ -46,8 +46,8 @@ export default function ResourceSelector({
   const maxCores = serverResources?.totalCores || 64;
   const maxMem = serverResources?.totalMemoryGB || 128;
 
-  const threadColor = rec ? getSliderColor(threads, rec.rec_threads, maxCores) : '#00E5FF';
-  const memColor = rec ? getSliderColor(memoryGB, rec.rec_mem_gb, maxMem) : '#00E5FF';
+  const threadColor = rec ? getSliderColor(threads, rec.rec_threads, maxCores) : '#58A6FF';
+  const memColor = rec ? getSliderColor(memoryGB, rec.rec_mem_gb, maxMem) : '#58A6FF';
 
   const exceedsServer = threads > maxCores || memoryGB > maxMem;
 
@@ -55,13 +55,35 @@ export default function ResourceSelector({
     <Paper
       sx={{
         p: 3,
-        background: 'rgba(17, 24, 39, 0.6)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(0, 229, 255, 0.1)',
+        background: '#161B22',
+        border: '1px solid #21262D',
+        borderRadius: '12px',
       }}
     >
-      <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <CpuIcon sx={{ color: 'primary.main' }} />
+      <Typography
+        variant="subtitle1"
+        sx={{
+          mb: 2.5,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          fontWeight: 600,
+          color: '#C9D1D9',
+        }}
+      >
+        <Box
+          sx={{
+            width: 32,
+            height: 32,
+            borderRadius: '8px',
+            background: 'rgba(88, 166, 255, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <CpuIcon sx={{ color: '#58A6FF', fontSize: 18 }} />
+        </Box>
         Resource Configuration
       </Typography>
 
@@ -69,24 +91,53 @@ export default function ResourceSelector({
         <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
           <Chip
             size="small"
-            label={`Server: ${serverResources.totalCores} cores`}
-            sx={{ bgcolor: 'rgba(0, 229, 255, 0.1)', color: 'primary.main' }}
+            label={`${serverResources.totalCores} cores`}
+            sx={{
+              bgcolor: 'rgba(88, 166, 255, 0.1)',
+              color: '#58A6FF',
+              border: '1px solid rgba(88, 166, 255, 0.15)',
+              borderRadius: '6px',
+              fontWeight: 500,
+              fontSize: '0.75rem',
+            }}
           />
           <Chip
             size="small"
             label={`${serverResources.totalMemoryGB} GB RAM`}
-            sx={{ bgcolor: 'rgba(0, 229, 255, 0.1)', color: 'primary.main' }}
+            sx={{
+              bgcolor: 'rgba(88, 166, 255, 0.1)',
+              color: '#58A6FF',
+              border: '1px solid rgba(88, 166, 255, 0.15)',
+              borderRadius: '6px',
+              fontWeight: 500,
+              fontSize: '0.75rem',
+            }}
           />
           <Chip
             size="small"
             label={`${serverResources.availableMemoryGB} GB available`}
-            sx={{ bgcolor: 'rgba(16, 185, 129, 0.1)', color: 'success.main' }}
+            sx={{
+              bgcolor: 'rgba(63, 185, 80, 0.1)',
+              color: '#3FB950',
+              border: '1px solid rgba(63, 185, 80, 0.15)',
+              borderRadius: '6px',
+              fontWeight: 500,
+              fontSize: '0.75rem',
+            }}
           />
         </Stack>
       )}
 
       {exceedsServer && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert
+          severity="error"
+          sx={{
+            mb: 2,
+            borderRadius: '8px',
+            bgcolor: 'rgba(248, 81, 73, 0.1)',
+            border: '1px solid rgba(248, 81, 73, 0.2)',
+          }}
+        >
           Selected resources exceed server capacity. Reduce threads or memory.
         </Alert>
       )}
@@ -94,12 +145,36 @@ export default function ResourceSelector({
       <Grid container spacing={4}>
         <Grid item xs={12} md={6}>
           <Box>
-            <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CpuIcon fontSize="small" />
-              CPU Threads: <strong>{threads}</strong>
+            <Typography
+              variant="body2"
+              sx={{
+                mb: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                color: '#C9D1D9',
+                fontWeight: 500,
+              }}
+            >
+              <CpuIcon fontSize="small" sx={{ color: '#8B949E' }} />
+              CPU Threads:
+              <Box
+                component="span"
+                sx={{
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: '6px',
+                  bgcolor: `${threadColor}18`,
+                  color: threadColor,
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                }}
+              >
+                {threads}
+              </Box>
               {rec && (
                 <Tooltip title={`Recommended: ${rec.rec_threads}, Minimum: ${rec.min_threads}`}>
-                  <InfoIcon fontSize="small" sx={{ color: 'text.secondary', cursor: 'help' }} />
+                  <InfoIcon fontSize="small" sx={{ color: '#484F58', cursor: 'help' }} />
                 </Tooltip>
               )}
             </Typography>
@@ -117,8 +192,30 @@ export default function ResourceSelector({
               ] : undefined}
               sx={{
                 color: threadColor,
-                '& .MuiSlider-track': { boxShadow: `0 0 8px ${threadColor}40` },
-                '& .MuiSlider-thumb': { boxShadow: `0 0 12px ${threadColor}60` },
+                height: 6,
+                '& .MuiSlider-track': {
+                  border: 'none',
+                  borderRadius: 3,
+                },
+                '& .MuiSlider-rail': {
+                  bgcolor: '#21262D',
+                  opacity: 1,
+                },
+                '& .MuiSlider-thumb': {
+                  width: 18,
+                  height: 18,
+                  bgcolor: '#fff',
+                  border: `2px solid ${threadColor}`,
+                  boxShadow: `0 2px 6px ${threadColor}40`,
+                  transition: 'box-shadow 200ms ease',
+                  '&:hover, &.Mui-focusVisible': {
+                    boxShadow: `0 2px 12px ${threadColor}60`,
+                  },
+                },
+                '& .MuiSlider-markLabel': {
+                  color: '#484F58',
+                  fontSize: '0.7rem',
+                },
               }}
             />
           </Box>
@@ -126,12 +223,36 @@ export default function ResourceSelector({
 
         <Grid item xs={12} md={6}>
           <Box>
-            <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <MemoryIcon fontSize="small" />
-              Memory (GB): <strong>{memoryGB}</strong>
+            <Typography
+              variant="body2"
+              sx={{
+                mb: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                color: '#C9D1D9',
+                fontWeight: 500,
+              }}
+            >
+              <MemoryIcon fontSize="small" sx={{ color: '#8B949E' }} />
+              Memory (GB):
+              <Box
+                component="span"
+                sx={{
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: '6px',
+                  bgcolor: `${memColor}18`,
+                  color: memColor,
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                }}
+              >
+                {memoryGB}
+              </Box>
               {rec && (
                 <Tooltip title={`Recommended: ${rec.rec_mem_gb} GB, Minimum: ${rec.min_mem_gb} GB`}>
-                  <InfoIcon fontSize="small" sx={{ color: 'text.secondary', cursor: 'help' }} />
+                  <InfoIcon fontSize="small" sx={{ color: '#484F58', cursor: 'help' }} />
                 </Tooltip>
               )}
             </Typography>
@@ -150,8 +271,30 @@ export default function ResourceSelector({
               ] : undefined}
               sx={{
                 color: memColor,
-                '& .MuiSlider-track': { boxShadow: `0 0 8px ${memColor}40` },
-                '& .MuiSlider-thumb': { boxShadow: `0 0 12px ${memColor}60` },
+                height: 6,
+                '& .MuiSlider-track': {
+                  border: 'none',
+                  borderRadius: 3,
+                },
+                '& .MuiSlider-rail': {
+                  bgcolor: '#21262D',
+                  opacity: 1,
+                },
+                '& .MuiSlider-thumb': {
+                  width: 18,
+                  height: 18,
+                  bgcolor: '#fff',
+                  border: `2px solid ${memColor}`,
+                  boxShadow: `0 2px 6px ${memColor}40`,
+                  transition: 'box-shadow 200ms ease',
+                  '&:hover, &.Mui-focusVisible': {
+                    boxShadow: `0 2px 12px ${memColor}60`,
+                  },
+                },
+                '& .MuiSlider-markLabel': {
+                  color: '#484F58',
+                  fontSize: '0.7rem',
+                },
               }}
             />
           </Box>
@@ -159,7 +302,16 @@ export default function ResourceSelector({
       </Grid>
 
       {rec && (
-        <Typography variant="caption" sx={{ mt: 2, display: 'block', color: 'text.secondary' }}>
+        <Typography
+          variant="caption"
+          sx={{
+            mt: 2.5,
+            display: 'block',
+            color: '#484F58',
+            fontSize: '0.75rem',
+            lineHeight: 1.5,
+          }}
+        >
           Recommended for this analysis: {rec.rec_threads} threads, {rec.rec_mem_gb} GB RAM.
           Minimum requirements: {rec.min_threads} threads, {rec.min_mem_gb} GB RAM.
         </Typography>

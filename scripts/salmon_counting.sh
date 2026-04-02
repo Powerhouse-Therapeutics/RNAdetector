@@ -82,7 +82,7 @@ fi
 OUTPUT_DIR=$(dirname "$OUTPUT")
 TEMP_DIR="$OUTPUT_DIR/TMP"
 
-if [ $PAIRED = "true" ]; then
+if [ "$PAIRED" = "true" ]; then
   # shellcheck disable=SC2086
   if ! salmon quant -i "$INDEXED_FASTA" -l A -1 "$INPUT_1" -2 "$INPUT_2" --validateMappings -p $THREADS -o "$TEMP_DIR" $OTHER_ARGS; then
     echo "An error occurred during salmon quant execution!"
@@ -106,7 +106,7 @@ fi
 
 # Move output file from tmp directory to output directory
 mv "$OUTPUT_FILE" "$OUTPUT"
-chmod 777 "$OUTPUT"
+[ -f "$OUTPUT" ] && chmod 777 "$OUTPUT"
 
 # Removing items of tmp directory
 if [ -d "$TEMP_DIR" ]; then
@@ -132,6 +132,6 @@ if [ -n "$HARMONIZED" ]; then
       exit 11
     fi
   fi
-  chmod 777 "$HARMONIZED"
-  chmod 777 "$HARMONIZED_TX"
+  [ -f "$HARMONIZED" ] && chmod 777 "$HARMONIZED"
+  [ -f "$HARMONIZED_TX" ] && chmod 777 "$HARMONIZED_TX"
 fi

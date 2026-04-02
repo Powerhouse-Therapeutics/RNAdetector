@@ -15,10 +15,6 @@ option_list <- list(
 opt_parser <- OptionParser(option_list=option_list)
 opt        <- parse_args(opt_parser)
 
-if (opt$help) {
-  print_help(opt_parser)
-}
-
 if (is.null(opt$config) || !file.exists(opt$config)) {
   print_help(opt_parser)
   stop("Config file is required!", call.=FALSE)

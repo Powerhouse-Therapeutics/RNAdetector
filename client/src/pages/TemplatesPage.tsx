@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -23,11 +23,25 @@ export default function TemplatesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    listTemplates()
-      .then(setTemplates)
-      .finally(() => setLoading(false));
+    abortRef.current = new AbortController();
+    const { signal } = abortRef.current;
+
+    listTemplates(signal)
+      .then((data) => {
+        if (!signal.aborted) setTemplates(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!signal.aborted) setError('Failed to load templates.');
+      })
+      .finally(() => {
+        if (!signal.aborted) setLoading(false);
+      });
+
+    return () => { abortRef.current?.abort(); };
   }, []);
 
   const handleDownload = async (name: string) => {
@@ -40,6 +54,14 @@ export default function TemplatesPage() {
   };
 
   if (loading) return <LoadingSkeleton variant="card" rows={6} />;
+
+  if (error) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 8 }}>
+        <Typography variant="body1" color="error">{error}</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -60,14 +82,13 @@ export default function TemplatesPage() {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                background: 'rgba(17, 24, 39, 0.6)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(0, 229, 255, 0.08)',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                background: '#161B22',
+                border: '1px solid rgba(240, 246, 252, 0.1)',
+                transition: 'all 0.2s ease',
                 '&:hover': {
-                  borderColor: 'rgba(0, 229, 255, 0.25)',
-                  boxShadow: '0 0 24px rgba(0, 229, 255, 0.08), 0 4px 16px rgba(0, 0, 0, 0.3)',
-                  transform: 'translateY(-2px)',
+                  borderColor: 'rgba(240, 246, 252, 0.15)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                  transform: 'translateY(-1px)',
                 },
               }}
             >
@@ -80,7 +101,7 @@ export default function TemplatesPage() {
                     label="TSV"
                     size="small"
                     sx={{
-                      bgcolor: 'rgba(0, 229, 255, 0.1)',
+                      bgcolor: 'rgba(88, 166, 255,0.1)',
                       color: 'primary.main',
                       fontWeight: 700,
                       fontSize: '0.7rem',
@@ -97,7 +118,7 @@ export default function TemplatesPage() {
                   sx={{
                     mt: 2,
                     textTransform: 'capitalize',
-                    borderColor: 'rgba(0, 229, 255, 0.2)',
+                    borderColor: 'rgba(88, 166, 255,0.2)',
                     color: 'text.secondary',
                   }}
                 />

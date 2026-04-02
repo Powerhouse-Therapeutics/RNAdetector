@@ -58,6 +58,12 @@ class ServerController extends Controller
      */
     public function install(string $name): JsonResponse
     {
+        /** @var \App\Models\User $user */
+        $user = \Auth::guard('api')->user();
+        if (!$user || !$user->admin) {
+            abort(403, 'Only administrators can install packages.');
+        }
+
         $packagesManager = new Packages();
         $package = $packagesManager->fetchOne($name);
 

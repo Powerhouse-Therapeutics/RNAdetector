@@ -48,7 +48,7 @@ if [ ! -w "$(dirname "$PREFIX_OUTPUT")" ]; then
   exit 5
 fi
 
-[ ! -f "$FASTA_FILE.fai" ] && samtools faidx "$FASTA_FILE" && chmod 777 "$FASTA_FILE.fai"
+[ ! -f "$FASTA_FILE.fai" ] && samtools faidx "$FASTA_FILE" && [ -f "$FASTA_FILE.fai" ] && chmod 777 "$FASTA_FILE.fai"
 
 if [ -n "$OTHER_ARGS" ]; then
   echo "Processing with custom arguments: \"${OTHER_ARGS}\""

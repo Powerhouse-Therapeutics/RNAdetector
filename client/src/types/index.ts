@@ -10,12 +10,16 @@ export interface User {
 export type JobStatus = 'ready' | 'queued' | 'processing' | 'completed' | 'failed';
 
 export type JobType =
-  | 'long_rna'
-  | 'small_rna'
-  | 'circ_rna'
-  | 'sample_group'
-  | 'diff_expr'
-  | 'pathway';
+  | 'long_rna_job_type'
+  | 'small_rna_job_type'
+  | 'circ_rna_job_type'
+  | 'samples_group_job_type'
+  | 'diff_expr_analysis_job_type'
+  | 'pathway_analysis_job_type'
+  | 'reference_upload_job_type'
+  | 'annotation_upload_job_type'
+  | 'install_packages_job_type'
+  | string;
 
 export interface Job {
   id: number;

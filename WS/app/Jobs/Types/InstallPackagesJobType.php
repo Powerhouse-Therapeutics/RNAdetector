@@ -107,6 +107,7 @@ class InstallPackagesJobType extends AbstractJob
         }
 
         $this->model->setOutput(['type' => self::OUT_TYPE_CONFIRMATION, 'done' => true]);
+        $this->model->save();
         $this->log('Job completed!');
     }
 

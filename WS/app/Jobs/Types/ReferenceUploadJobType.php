@@ -274,10 +274,15 @@ class ReferenceUploadJobType extends AbstractJob
         $index = (array)$this->model->getParameter('index', []);
         $mapFile = $this->model->getParameter('map_file');
         $absoluteSourceFilename = $this->model->getAbsoluteJobDirectory() . '/' . $file;
-        $absoluteSourceFilename = $this->model->getAbsoluteJobDirectory() . '/' . self::checksForCompression(
+        $checksResult = self::checksForCompression(
                 $this->model,
                 $absoluteSourceFilename
             );
+        if ($checksResult !== null && $checksResult !== $absoluteSourceFilename) {
+            $absoluteSourceFilename = $this->model->getAbsoluteJobDirectory() . '/' . $checksResult;
+        } elseif ($checksResult !== null) {
+            $absoluteSourceFilename = $checksResult;
+        }
         if ($absoluteSourceFilename === null) {
             throw new ProcessingJobException("An unknown error occurred!");
         }

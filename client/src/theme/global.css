@@ -1,16 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --color-primary: #00E5FF;
-  --color-secondary: #FF00E5;
-  --color-bg-dark: #0A0E17;
-  --color-bg-card: #111827;
-  --color-bg-elevated: #1F2937;
-  --color-success: #10B981;
-  --color-error: #EF4444;
-  --color-warning: #F59E0B;
-  --glow-primary: 0 0 20px rgba(0, 229, 255, 0.15);
-  --glow-primary-strong: 0 0 30px rgba(0, 229, 255, 0.3);
+  --color-primary: #58A6FF;
+  --color-secondary: #8B949E;
+  --color-bg-dark: #0D1117;
+  --color-bg-card: #161B22;
+  --color-bg-elevated: #21262D;
+  --color-success: #3FB950;
+  --color-error: #F85149;
+  --color-warning: #D29922;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 html, body, #root {
@@ -24,19 +25,15 @@ code, pre, .mono {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Glow animations */
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(0, 229, 255, 0.2); }
-  50% { box-shadow: 0 0 16px rgba(0, 229, 255, 0.4); }
+/* Subtle animations */
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 @keyframes status-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
-}
-
-.glow-pulse {
-  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .status-running {
@@ -47,20 +44,18 @@ code, pre, .mono {
 .status-completed { color: var(--color-success); }
 .status-failed { color: var(--color-error); }
 .status-queued { color: var(--color-warning); }
-.status-ready { color: #9CA3AF; }
+.status-ready { color: var(--color-secondary); }
 
-/* Glassmorphism utility */
+/* Elevated surface utility */
 .glass {
-  background: rgba(17, 24, 39, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 229, 255, 0.08);
+  background: #161B22;
+  border: 1px solid rgba(240, 246, 252, 0.1);
 }
 
 /* Custom selection color */
 ::selection {
-  background: rgba(0, 229, 255, 0.3);
-  color: #F9FAFB;
+  background: rgba(88, 166, 255, 0.3);
+  color: #C9D1D9;
 }
 
 /* Smooth scrolling */

@@ -30,4 +30,4 @@ done
 OUTPUT_FILE="${INPUT_FILE}.md5"
 
 md5sum "$INPUT_FILE" > "$OUTPUT_FILE"  || exit_abnormal "Unable to compute MD5" 6
-chmod 777 "$OUTPUT_FILE"
+[ -f "$OUTPUT_FILE" ] && chmod 777 "$OUTPUT_FILE"

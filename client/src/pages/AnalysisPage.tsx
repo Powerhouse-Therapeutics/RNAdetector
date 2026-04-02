@@ -44,6 +44,7 @@ import type { FileEntry, JobType, Reference, Annotation, Job } from '@/types';
 import { createJob, submitJob, fetchJobs } from '@/api/jobs';
 import { fetchReferences } from '@/api/references';
 import { fetchAnnotations } from '@/api/annotations';
+import { getErrorMessage } from '@/api/client';
 import AnalysisWizard, { type StepConfig } from '@/components/analysis/AnalysisWizard';
 import ServerFileBrowser from '@/components/files/ServerFileBrowser';
 import ResourceSelector from '@/components/analysis/ResourceSelector';
@@ -130,7 +131,7 @@ const ANALYSIS_CONFIG: Record<
   },
   small_rna: {
     title: 'Small RNA-Seq Analysis',
-    algorithms: ['STAR', 'HISAT2', 'Salmon'],
+    algorithms: ['BWA', 'STAR', 'HISAT2'],
     fileExtensions: ['.fastq', '.fq', '.fastq.gz', '.fq.gz'],
     description:
       'Identify and quantify small RNAs including miRNAs, snoRNAs, and piRNAs using BWA alignment.',
@@ -217,9 +218,21 @@ function parseBulkInput(text: string, paired: boolean): SampleEntry[] {
 
 const paperSx = {
   p: 2,
-  background: 'rgba(17, 24, 39, 0.6)',
-  backdropFilter: 'blur(12px)',
-  border: '1px solid rgba(0, 229, 255, 0.1)',
+  background: '#161B22',
+  border: '1px solid #21262D',
+  borderRadius: '12px',
+};
+
+const tableHeadCellSx = {
+  color: '#8B949E',
+  fontWeight: 600,
+  fontSize: '0.78rem',
+  borderBottom: '1px solid #21262D',
+  letterSpacing: '0.02em',
+};
+
+const tableBodyCellSx = {
+  borderBottom: '1px solid #21262D',
 };
 
 export default function AnalysisPage() {
@@ -254,7 +267,7 @@ export default function AnalysisPage() {
 
   const [groupColors, setGroupColors] = useState<{name: string; color: string}[]>([
     { name: 'Control', color: '#3B82F6' },
-    { name: 'Treatment', color: '#EF4444' },
+    { name: 'Treatment', color: '#F85149' },
   ]);
   const [references, setReferences] = useState<Reference[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -302,7 +315,7 @@ export default function AnalysisPage() {
       setLoadingJobs(true);
       // Fetch a large page to get all jobs; paginate if needed
       fetchJobs(1, 200, { field: 'created_at', direction: 'desc' })
-        .then((res) => setAllJobs(res.data))
+        .then((res) => setAllJobs(Array.isArray(res.data) ? res.data : []))
         .finally(() => setLoadingJobs(false));
     }
   }, [analysisType]);
@@ -315,24 +328,36 @@ export default function AnalysisPage() {
     }
   }, [type]);
 
+  /* ----- reset all form state when analysis type changes ----- */
+  useEffect(() => {
+    setJobName('');
+    setSubmitError(null);
+    setSamples([]);
+    setBulkText('');
+    setShowBulkInput(false);
+    setSgParams({ selectedJobIds: [] });
+    setDegsParams({ sourceSampleGroup: '', sampleType: 'gene', statsMethods: ['deseq'], contrasts: [{ control: '', case: '' }], pcut: 0.05, norm: 'deseq', adjustMethod: 'BH' });
+    setPwParams({ degsAnalysis: '', organism: 'hsa', degsPCutoff: 0.05, degsUseFdr: true, lfcThreshold: 0, pathwayPCutoff: 0.05, pathwayUseFdr: true });
+  }, [type]);
+
   /* ----- filtered job lists ----- */
   const completedSeqJobs = useMemo(
     () =>
       allJobs.filter(
         (j) =>
           j.status === 'completed' &&
-          ['long_rna', 'small_rna', 'circ_rna'].includes(j.type),
+          ['long_rna_job_type', 'small_rna_job_type', 'circ_rna_job_type'].includes(j.type),
       ),
     [allJobs],
   );
 
   const completedSampleGroupJobs = useMemo(
-    () => allJobs.filter((j) => j.status === 'completed' && j.type === 'sample_group'),
+    () => allJobs.filter((j) => j.status === 'completed' && j.type === 'samples_group_job_type'),
     [allJobs],
   );
 
   const completedDEGsJobs = useMemo(
-    () => allJobs.filter((j) => j.status === 'completed' && j.type === 'diff_expr'),
+    () => allJobs.filter((j) => j.status === 'completed' && j.type === 'diff_expr_analysis_job_type'),
     [allJobs],
   );
 
@@ -506,11 +531,8 @@ export default function AnalysisPage() {
       });
       await submitJob(job.id);
       navigate('/jobs');
-    } catch (err: any) {
-      const msg = err?.response?.data?.errors
-        ? Object.values(err.response.data.errors).flat().join('; ')
-        : err?.response?.data?.message || 'Failed to submit analysis job.';
-      setSubmitError(msg);
+    } catch (err: unknown) {
+      setSubmitError(getErrorMessage(err, 'Failed to submit analysis job.'));
     } finally {
       setSubmitting(false);
     }
@@ -529,9 +551,11 @@ export default function AnalysisPage() {
     },
     content: (
       <Stack spacing={3}>
-        <Typography variant="body2" color="text.secondary">
-          {config.description}
-        </Typography>
+        <Paper sx={{ ...paperSx, p: 2.5 }}>
+          <Typography variant="body2" sx={{ color: '#8B949E', lineHeight: 1.6 }}>
+            {config.description}
+          </Typography>
+        </Paper>
         <TextField
           label="Job Name"
           value={jobName}
@@ -539,16 +563,34 @@ export default function AnalysisPage() {
           fullWidth
           required
           placeholder={`e.g. ${analysisType}_run1`}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '8px',
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#30363D',
+                transition: 'border-color 200ms ease',
+              },
+              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+            },
+            '& .MuiInputLabel-root': { color: '#8B949E' },
+            '& .MuiInputLabel-root.Mui-focused': { color: '#58A6FF' },
+          }}
         />
         {isSequencing(analysisType) && (
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
-                <InputLabel>Input Type</InputLabel>
+                <InputLabel sx={{ color: '#8B949E' }}>Input Type</InputLabel>
                 <Select
                   value={seqParams.inputType}
                   label="Input Type"
                   onChange={(e) => updateSeq('inputType', e.target.value as 'single' | 'paired')}
+                  sx={{
+                    borderRadius: '8px',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#30363D', transition: 'border-color 200ms ease' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+                  }}
                 >
                   <MenuItem value="single">Single-end</MenuItem>
                   <MenuItem value="paired">Paired-end</MenuItem>
@@ -557,11 +599,16 @@ export default function AnalysisPage() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
-                <InputLabel>Input Format</InputLabel>
+                <InputLabel sx={{ color: '#8B949E' }}>Input Format</InputLabel>
                 <Select
                   value={seqParams.inputFormat}
                   label="Input Format"
                   onChange={(e) => updateSeq('inputFormat', e.target.value as 'FASTQ' | 'BAM')}
+                  sx={{
+                    borderRadius: '8px',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#30363D', transition: 'border-color 200ms ease' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+                  }}
                 >
                   <MenuItem value="FASTQ">FASTQ</MenuItem>
                   <MenuItem value="BAM">BAM</MenuItem>
@@ -598,20 +645,27 @@ export default function AnalysisPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, borderBottom: '1px solid rgba(0, 229, 255, 0.15)' }}>#</TableCell>
-                  <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, borderBottom: '1px solid rgba(0, 229, 255, 0.15)' }}>Sample Name</TableCell>
-                  <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, borderBottom: '1px solid rgba(0, 229, 255, 0.15)' }}>R1 File</TableCell>
+                  <TableCell sx={tableHeadCellSx}>#</TableCell>
+                  <TableCell sx={tableHeadCellSx}>Sample Name</TableCell>
+                  <TableCell sx={tableHeadCellSx}>R1 File</TableCell>
                   {isPaired && (
-                    <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, borderBottom: '1px solid rgba(0, 229, 255, 0.15)' }}>R2 File</TableCell>
+                    <TableCell sx={tableHeadCellSx}>R2 File</TableCell>
                   )}
-                  <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.15)', width: 48 }} />
+                  <TableCell sx={{ ...tableHeadCellSx, width: 48 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
                 {samples.map((sample, idx) => (
-                  <TableRow key={idx} sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                    <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', color: 'text.secondary' }}>{idx + 1}</TableCell>
-                    <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', minWidth: 160 }}>
+                  <TableRow
+                    key={idx}
+                    sx={{
+                      '&:last-child td': { borderBottom: 0 },
+                      transition: 'background 200ms ease',
+                      '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.03)' },
+                    }}
+                  >
+                    <TableCell sx={{ ...tableBodyCellSx, color: '#484F58', fontWeight: 500 }}>{idx + 1}</TableCell>
+                    <TableCell sx={{ ...tableBodyCellSx, minWidth: 160 }}>
                       <TextField
                         value={sample.name}
                         onChange={(e) => updateSample(idx, 'name', e.target.value)}
@@ -619,10 +673,17 @@ export default function AnalysisPage() {
                         variant="outlined"
                         placeholder="Sample name"
                         fullWidth
-                        sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.85rem' } }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.85rem',
+                            borderRadius: '6px',
+                            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#30363D', transition: 'border-color 200ms ease' },
+                            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+                          },
+                        }}
                       />
                     </TableCell>
-                    <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', minWidth: 200 }}>
+                    <TableCell sx={{ ...tableBodyCellSx, minWidth: 200 }}>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <TextField
                           value={sample.r1Path}
@@ -631,12 +692,25 @@ export default function AnalysisPage() {
                           variant="outlined"
                           placeholder="/path/to/file_R1.fastq.gz"
                           fullWidth
-                          sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.8rem' } }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              fontSize: '0.8rem',
+                              fontFamily: 'monospace',
+                              borderRadius: '6px',
+                              '& .MuiOutlinedInput-notchedOutline': { borderColor: '#30363D', transition: 'border-color 200ms ease' },
+                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+                            },
+                          }}
                         />
                         <IconButton
                           size="small"
                           onClick={() => setBrowseTarget({ sampleIdx: idx, field: 'r1' })}
-                          sx={{ color: '#00e5ff', flexShrink: 0 }}
+                          sx={{
+                            color: '#58A6FF',
+                            flexShrink: 0,
+                            transition: 'all 200ms ease',
+                            '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.1)' },
+                          }}
                           title="Browse server files"
                         >
                           <FolderOpenIcon fontSize="small" />
@@ -644,7 +718,7 @@ export default function AnalysisPage() {
                       </Stack>
                     </TableCell>
                     {isPaired && (
-                      <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', minWidth: 200 }}>
+                      <TableCell sx={{ ...tableBodyCellSx, minWidth: 200 }}>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <TextField
                             value={sample.r2Path}
@@ -653,12 +727,25 @@ export default function AnalysisPage() {
                             variant="outlined"
                             placeholder="/path/to/file_R2.fastq.gz"
                             fullWidth
-                            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.8rem' } }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                fontSize: '0.8rem',
+                                fontFamily: 'monospace',
+                                borderRadius: '6px',
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#30363D', transition: 'border-color 200ms ease' },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+                              },
+                            }}
                           />
                           <IconButton
                             size="small"
                             onClick={() => setBrowseTarget({ sampleIdx: idx, field: 'r2' })}
-                            sx={{ color: '#00e5ff', flexShrink: 0 }}
+                            sx={{
+                              color: '#58A6FF',
+                              flexShrink: 0,
+                              transition: 'all 200ms ease',
+                              '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.1)' },
+                            }}
                             title="Browse server files"
                           >
                             <FolderOpenIcon fontSize="small" />
@@ -666,14 +753,21 @@ export default function AnalysisPage() {
                         </Stack>
                       </TableCell>
                     )}
-                    <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)' }}>
+                    <TableCell sx={tableBodyCellSx}>
                       <Stack direction="row" spacing={0} alignItems="center">
                         {seqParams.inputType === 'paired' && (
                           <Button
                             size="small"
                             variant="text"
                             onClick={() => setBrowseTarget({ sampleIdx: idx, field: 'both' })}
-                            sx={{ minWidth: 'auto', fontSize: '0.7rem', color: 'primary.main' }}
+                            sx={{
+                              minWidth: 'auto',
+                              fontSize: '0.7rem',
+                              color: '#58A6FF',
+                              borderRadius: '6px',
+                              transition: 'all 200ms ease',
+                              '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.1)' },
+                            }}
                           >
                             Select Both
                           </Button>
@@ -681,7 +775,11 @@ export default function AnalysisPage() {
                         <IconButton
                           size="small"
                           onClick={() => removeSample(idx)}
-                          sx={{ color: 'error.main' }}
+                          sx={{
+                            color: '#484F58',
+                            transition: 'all 200ms ease',
+                            '&:hover': { color: '#F85149', bgcolor: 'rgba(248, 81, 73, 0.1)' },
+                          }}
                           title="Remove sample"
                         >
                           <DeleteIcon fontSize="small" />
@@ -696,12 +794,20 @@ export default function AnalysisPage() {
         )}
 
         {/* Action buttons */}
-        <Stack direction="row" spacing={2}>
+        <Stack direction="row" spacing={1.5}>
           <Button
             variant="outlined"
             startIcon={<AddIcon />}
             onClick={addSample}
-            sx={{ borderColor: 'rgba(0, 229, 255, 0.3)', color: '#00e5ff' }}
+            sx={{
+              borderColor: '#30363D',
+              color: '#C9D1D9',
+              borderRadius: '8px',
+              fontWeight: 500,
+              px: 2,
+              transition: 'all 200ms ease',
+              '&:hover': { borderColor: '#58A6FF', color: '#58A6FF', bgcolor: 'rgba(88, 166, 255, 0.06)' },
+            }}
           >
             Add Sample
           </Button>
@@ -709,7 +815,15 @@ export default function AnalysisPage() {
             variant="outlined"
             startIcon={<FileUploadIcon />}
             onClick={() => setShowBulkInput(!showBulkInput)}
-            sx={{ borderColor: 'rgba(0, 229, 255, 0.3)', color: '#00e5ff' }}
+            sx={{
+              borderColor: '#30363D',
+              color: '#C9D1D9',
+              borderRadius: '8px',
+              fontWeight: 500,
+              px: 2,
+              transition: 'all 200ms ease',
+              '&:hover': { borderColor: '#58A6FF', color: '#58A6FF', bgcolor: 'rgba(88, 166, 255, 0.06)' },
+            }}
           >
             Bulk Import
           </Button>
@@ -735,7 +849,16 @@ export default function AnalysisPage() {
               placeholder={isPaired
                 ? '/data/fastq/sample1_R1_001.fastq.gz\n/data/fastq/sample1_R2_001.fastq.gz\n/data/fastq/sample2_R1_001.fastq.gz\n/data/fastq/sample2_R2_001.fastq.gz'
                 : '/data/fastq/sample1.fastq.gz\n/data/fastq/sample2.fastq.gz'}
-              sx={{ mb: 1, '& .MuiOutlinedInput-root': { fontSize: '0.85rem', fontFamily: 'monospace' } }}
+              sx={{
+                mb: 1.5,
+                '& .MuiOutlinedInput-root': {
+                  fontSize: '0.85rem',
+                  fontFamily: '"JetBrains Mono", monospace',
+                  borderRadius: '8px',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#30363D' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+                },
+              }}
             />
             <Stack direction="row" spacing={1}>
               <Button
@@ -743,7 +866,14 @@ export default function AnalysisPage() {
                 size="small"
                 onClick={handleBulkImport}
                 disabled={!bulkText.trim()}
-                sx={{ bgcolor: '#00e5ff', color: '#000', '&:hover': { bgcolor: '#00b8d4' } }}
+                sx={{
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  background: 'linear-gradient(135deg, #58A6FF, #388BFD)',
+                  transition: 'all 200ms ease',
+                  '&:hover': { background: 'linear-gradient(135deg, #79B8FF, #58A6FF)' },
+                  '&.Mui-disabled': { background: '#21262D', color: '#484F58' },
+                }}
               >
                 Import
               </Button>
@@ -751,7 +881,7 @@ export default function AnalysisPage() {
                 variant="text"
                 size="small"
                 onClick={() => { setShowBulkInput(false); setBulkText(''); }}
-                sx={{ color: 'text.secondary' }}
+                sx={{ color: '#8B949E', borderRadius: '8px', transition: 'all 200ms ease', '&:hover': { bgcolor: '#21262D' } }}
               >
                 Cancel
               </Button>
@@ -774,6 +904,7 @@ export default function AnalysisPage() {
     label: 'Parameters',
     validate: () => {
       if (!seqParams.algorithm) return 'Please select an algorithm.';
+      if (config.needsGenome && !seqParams.referenceId) return 'Please select a reference genome.';
       return true;
     },
     content: (
@@ -883,7 +1014,7 @@ export default function AnalysisPage() {
                     <Checkbox
                       checked={sgParams.selectedJobIds.includes(job.id)}
                       onChange={() => toggleSeqJob(job.id)}
-                      sx={{ color: 'rgba(0, 229, 255, 0.5)', '&.Mui-checked': { color: '#00e5ff' } }}
+                      sx={{ color: '#30363D', '&.Mui-checked': { color: '#58A6FF' }, transition: 'color 200ms ease' }}
                     />
                   }
                   label={
@@ -900,8 +1031,12 @@ export default function AnalysisPage() {
                   sx={{
                     mx: 0,
                     py: 1,
-                    px: 1,
-                    borderBottom: '1px solid rgba(0, 229, 255, 0.06)',
+                    px: 1.5,
+                    borderBottom: '1px solid #21262D',
+                    borderRadius: '6px',
+                    mb: 0.5,
+                    transition: 'background 200ms ease',
+                    '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.04)' },
                     '&:last-child': { borderBottom: 'none' },
                   }}
                 />
@@ -1009,7 +1144,7 @@ export default function AnalysisPage() {
                           return { ...prev, statsMethods: methods };
                         });
                       }}
-                      sx={{ color: 'rgba(0, 229, 255, 0.5)', '&.Mui-checked': { color: '#00e5ff' } }}
+                      sx={{ color: '#30363D', '&.Mui-checked': { color: '#58A6FF' }, transition: 'color 200ms ease' }}
                     />
                   }
                   label={method}
@@ -1070,7 +1205,15 @@ export default function AnalysisPage() {
         <Box>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="subtitle2">Contrasts</Typography>
-            <IconButton size="small" onClick={addContrast} sx={{ color: '#00e5ff' }}>
+            <IconButton
+              size="small"
+              onClick={addContrast}
+              sx={{
+                color: '#58A6FF',
+                transition: 'all 200ms ease',
+                '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.1)' },
+              }}
+            >
               <AddIcon />
             </IconButton>
           </Stack>
@@ -1216,7 +1359,7 @@ export default function AnalysisPage() {
                 <Switch
                   checked={pwParams.degsUseFdr}
                   onChange={(e) => setPwParams((prev) => ({ ...prev, degsUseFdr: e.target.checked }))}
-                  sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#00e5ff' } }}
+                  sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#58A6FF' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'rgba(88, 166, 255, 0.4)' } }}
                 />
               }
               label="Use FDR for DEGs"
@@ -1246,7 +1389,7 @@ export default function AnalysisPage() {
                   onChange={(e) =>
                     setPwParams((prev) => ({ ...prev, pathwayUseFdr: e.target.checked }))
                   }
-                  sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#00e5ff' } }}
+                  sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#58A6FF' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'rgba(88, 166, 255, 0.4)' } }}
                 />
               }
               label="Use FDR for Pathways"
@@ -1331,13 +1474,13 @@ export default function AnalysisPage() {
           </Alert>
         )}
         <Paper sx={{ ...paperSx, p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2, color: '#C9D1D9', fontWeight: 600 }}>
             Analysis Summary
           </Typography>
           <List dense>
             {buildSummaryItems().map((item, idx) => (
               <Box key={idx}>
-                {idx > 0 && <Divider sx={{ borderColor: 'rgba(0, 229, 255, 0.06)' }} />}
+                {idx > 0 && <Divider sx={{ borderColor: '#21262D' }} />}
                 <SummaryItem label={item.label} value={item.value} />
               </Box>
             ))}
@@ -1353,20 +1496,20 @@ export default function AnalysisPage() {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(0, 229, 255, 0.15)', py: 0.5 }}>Name</TableCell>
-                      <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(0, 229, 255, 0.15)', py: 0.5 }}>R1</TableCell>
+                      <TableCell sx={{ ...tableHeadCellSx, py: 0.5, fontSize: '0.75rem' }}>Name</TableCell>
+                      <TableCell sx={{ ...tableHeadCellSx, py: 0.5, fontSize: '0.75rem' }}>R1</TableCell>
                       {seqParams.inputType === 'paired' && (
-                        <TableCell sx={{ color: 'rgba(0, 229, 255, 0.7)', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(0, 229, 255, 0.15)', py: 0.5 }}>R2</TableCell>
+                        <TableCell sx={{ ...tableHeadCellSx, py: 0.5, fontSize: '0.75rem' }}>R2</TableCell>
                       )}
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {samples.map((s, idx) => (
                       <TableRow key={idx} sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                        <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', fontSize: '0.8rem', py: 0.5 }}>{s.name || '(unnamed)'}</TableCell>
-                        <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', fontSize: '0.75rem', py: 0.5, fontFamily: 'monospace', color: 'text.secondary' }}>{s.r1Path.split('/').pop()}</TableCell>
+                        <TableCell sx={{ borderBottom: '1px solid #21262D', fontSize: '0.8rem', py: 0.5, color: '#C9D1D9' }}>{s.name || '(unnamed)'}</TableCell>
+                        <TableCell sx={{ borderBottom: '1px solid #21262D', fontSize: '0.75rem', py: 0.5, fontFamily: '"JetBrains Mono", monospace', color: '#8B949E' }}>{s.r1Path.split('/').pop()}</TableCell>
                         {seqParams.inputType === 'paired' && (
-                          <TableCell sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.06)', fontSize: '0.75rem', py: 0.5, fontFamily: 'monospace', color: 'text.secondary' }}>{s.r2Path.split('/').pop()}</TableCell>
+                          <TableCell sx={{ borderBottom: '1px solid #21262D', fontSize: '0.75rem', py: 0.5, fontFamily: '"JetBrains Mono", monospace', color: '#8B949E' }}>{s.r2Path.split('/').pop()}</TableCell>
                         )}
                       </TableRow>
                     ))}
@@ -1422,9 +1565,24 @@ export default function AnalysisPage() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 4 }}>
-        <AnalysisIcon sx={{ color: 'primary.main', fontSize: 28 }} />
-        <Typography variant="h4">{config.title}</Typography>
+      <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 4 }}>
+        <Box
+          sx={{
+            width: 44,
+            height: 44,
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(88, 166, 255, 0.15), rgba(56, 139, 253, 0.08))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <AnalysisIcon sx={{ color: '#58A6FF', fontSize: 24 }} />
+        </Box>
+        <Box>
+          <Typography variant="h4" sx={{ color: '#C9D1D9', fontWeight: 700 }}>{config.title}</Typography>
+          <Typography variant="body2" sx={{ color: '#484F58', mt: 0.25 }}>Configure and submit your analysis</Typography>
+        </Box>
       </Stack>
       <AnalysisWizard steps={steps} onSubmit={handleSubmit} submitting={submitting} />
 
@@ -1434,17 +1592,19 @@ export default function AnalysisPage() {
         onClose={() => { setBrowseTarget(null); setBrowsePending([]); }}
         maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { background: 'rgba(17, 24, 39, 0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0, 229, 255, 0.15)' } }}
+        PaperProps={{ sx: { bgcolor: '#0D1117', backgroundImage: 'none', border: '1px solid #21262D', borderRadius: '12px' } }}
       >
-        <DialogTitle sx={{ borderBottom: '1px solid rgba(0, 229, 255, 0.1)' }}>
-          {browseTarget?.field === 'both' ? 'Select R1 & R2 Files' : `Select ${browseTarget?.field === 'r2' ? 'R2' : 'R1'} File`}
+        <DialogTitle sx={{ borderBottom: '1px solid #21262D', pb: 2 }}>
+          <Typography variant="h6" sx={{ color: '#C9D1D9', fontWeight: 600 }}>
+            {browseTarget?.field === 'both' ? 'Select R1 & R2 Files' : `Select ${browseTarget?.field === 'r2' ? 'R2' : 'R1'} File`}
+          </Typography>
           {browseTarget !== null && samples[browseTarget.sampleIdx]?.name && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            <Typography variant="caption" sx={{ color: '#484F58', display: 'block', mt: 0.5 }}>
               for sample: {samples[browseTarget.sampleIdx].name}
             </Typography>
           )}
         </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
+        <DialogContent sx={{ pt: 2.5 }}>
           {browseTarget !== null && (
             <ServerFileBrowser
               onSelect={setBrowsePending}
@@ -1454,17 +1614,29 @@ export default function AnalysisPage() {
             />
           )}
         </DialogContent>
-        <DialogActions sx={{ borderTop: '1px solid rgba(0, 229, 255, 0.1)', px: 3, py: 1.5 }}>
-          <Typography variant="body2" sx={{ flex: 1, color: browsePending.length > 0 ? 'primary.main' : 'text.secondary' }}>
+        <DialogActions sx={{ borderTop: '1px solid #21262D', px: 3, py: 2 }}>
+          <Typography variant="body2" sx={{ flex: 1, color: browsePending.length > 0 ? '#58A6FF' : '#484F58', fontWeight: 500, fontSize: '0.85rem' }}>
             {browsePending.length > 0 ? `${browsePending.length} file(s) selected` : 'Click a file to select it'}
           </Typography>
-          <Button onClick={() => { setBrowseTarget(null); setBrowsePending([]); }} sx={{ color: 'text.secondary' }}>
+          <Button
+            onClick={() => { setBrowseTarget(null); setBrowsePending([]); }}
+            sx={{ color: '#8B949E', borderRadius: '8px', transition: 'all 200ms ease', '&:hover': { bgcolor: '#21262D', color: '#C9D1D9' } }}
+          >
             Cancel
           </Button>
           <Button
             variant="contained"
             disabled={browsePending.length === 0}
             onClick={() => { handleBrowseSelect(browsePending); setBrowsePending([]); }}
+            sx={{
+              borderRadius: '8px',
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #58A6FF, #388BFD)',
+              boxShadow: '0 2px 8px rgba(88, 166, 255, 0.3)',
+              transition: 'all 200ms ease',
+              '&:hover': { background: 'linear-gradient(135deg, #79B8FF, #58A6FF)', boxShadow: '0 4px 12px rgba(88, 166, 255, 0.4)' },
+              '&.Mui-disabled': { background: '#21262D', color: '#484F58', boxShadow: 'none' },
+            }}
           >
             Confirm
           </Button>
@@ -1476,12 +1648,18 @@ export default function AnalysisPage() {
 
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
-    <ListItem>
+    <ListItem sx={{ py: 1 }}>
       <ListItemText
         primary={label}
         secondary={value}
-        primaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
-        secondaryTypographyProps={{ variant: 'body2', color: 'text.primary', fontWeight: 500 }}
+        primaryTypographyProps={{
+          variant: 'caption',
+          sx: { color: '#484F58', fontSize: '0.72rem', letterSpacing: '0.03em', textTransform: 'uppercase' },
+        }}
+        secondaryTypographyProps={{
+          variant: 'body2',
+          sx: { color: '#C9D1D9', fontWeight: 500, mt: 0.25 },
+        }}
       />
     </ListItem>
   );
