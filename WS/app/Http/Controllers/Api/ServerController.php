@@ -19,25 +19,31 @@ class ServerController extends Controller
     {
         $systemInfo = new SystemInfo();
 
-        $diskTotal = disk_total_space('/');
-        $diskFree = disk_free_space('/');
+        $totalKb = $systemInfo->maxMemory();
+        $availKb = $systemInfo->availableMemory();
+        $cores = $systemInfo->numCores();
+        $usedCores = $systemInfo->usedCores();
 
-        $data = $systemInfo->toArray();
-        $data['data']['disk'] = [
-            'total' => $diskTotal,
-            'free' => $diskFree,
-            'used' => $diskTotal - $diskFree,
-            'usage_percent' => round((($diskTotal - $diskFree) / $diskTotal) * 100, 2),
-        ];
+        $uptimeSeconds = 0;
+        if (file_exists('/proc/uptime')) {
+            $raw = @file_get_contents('/proc/uptime');
+            if ($raw) {
+                $uptimeSeconds = (int) floatval(explode(' ', $raw)[0]);
+            }
+        }
+        $days = intdiv($uptimeSeconds, 86400);
+        $hours = intdiv($uptimeSeconds % 86400, 3600);
+        $uptime = $days > 0 ? "{$days}d {$hours}h" : "{$hours}h";
 
-        $data['data']['queue'] = [
-            'queued' => \App\Models\Job::where('status', \App\Models\Job::QUEUED)->count(),
-            'processing' => \App\Models\Job::where('status', \App\Models\Job::PROCESSING)->count(),
-            'completed' => \App\Models\Job::where('status', \App\Models\Job::COMPLETED)->count(),
-            'failed' => \App\Models\Job::where('status', \App\Models\Job::FAILED)->count(),
-        ];
-
-        return response()->json($data);
+        return response()->json(['data' => [
+            'version'             => \App\Utils::VERSION ?? '0.0.3',
+            'cores'               => $cores,
+            'used_cores'          => $usedCores,
+            'total_memory_gb'     => round($totalKb / 1048576, 1),
+            'available_memory_gb' => round($availKb / 1048576, 1),
+            'docker_running'      => true,
+            'uptime'              => $uptime,
+        ]]);
     }
 
     /**

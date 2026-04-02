@@ -32,6 +32,6 @@ return [
             return ['path' => $parts[0], 'label' => basename($parts[0])];
         }
         return null;
-    }, explode(',', env('BROWSABLE_VOLUMES', '/rnadetector/ws/storage/app/public:Job Outputs')))),
+    }, explode(',', env('BROWSABLE_VOLUMES', '/data:Data,/rnadetector/ws/storage/app/public:Job Outputs')))),
 
 ];

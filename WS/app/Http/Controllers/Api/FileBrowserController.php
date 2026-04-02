@@ -17,11 +17,24 @@ class FileBrowserController extends Controller
         if (!is_array($volumes)) {
             $volumes = [];
         }
-        // Filter out volumes with invalid paths
-        $validVolumes = array_filter($volumes, function ($volume) {
-            return is_array($volume) && isset($volume['path']) && is_string($volume['path']) && is_dir($volume['path']);
-        });
-        return response()->json(['data' => array_values($validVolumes)]);
+        $result = [];
+        $id = 1;
+        foreach ($volumes as $volume) {
+            if (!is_array($volume) || empty($volume['path']) || !is_string($volume['path'])) {
+                continue;
+            }
+            if (!is_dir($volume['path'])) {
+                continue;
+            }
+            $result[] = [
+                'id'   => $id++,
+                'name' => $volume['label'] ?? $volume['name'] ?? basename($volume['path']),
+                'path' => $volume['path'],
+                'type' => 'local',
+                'writable' => is_writable($volume['path']),
+            ];
+        }
+        return response()->json(['data' => $result]);
     }
 
     /**
