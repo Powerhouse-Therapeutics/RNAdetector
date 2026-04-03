@@ -103,7 +103,7 @@ trait UseCountingTrait
      * @return array
      * @throws \App\Exceptions\ProcessingJobException
      */
-    private function runFeatureCount(Job $model, string $countingInputFile, Annotation $annotation, int $threads = 1): array
+    private function runFeatureCount(Job $model, string $countingInputFile, Annotation $annotation, int $threads = 1, bool $paired = false): array
     {
         if (!$annotation->isGtf()) {
             throw new ProcessingJobException('The selected annotation must be in GTF format.');
@@ -129,6 +129,9 @@ trait UseCountingTrait
             '-h',
             $harmonized,
         ];
+        if ($paired) {
+            $command[] = '-p';
+        }
         AbstractJob::addMap($command, $annotation);
         AbstractJob::runCommand(
             $this->appendCustomArguments($command, 'counting_custom_arguments'),

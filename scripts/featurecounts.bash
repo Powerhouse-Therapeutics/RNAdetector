@@ -8,9 +8,11 @@
 #	-o OUTPUT file
 #   -x map file
 #   -h HARMONIZED output file
+#   -p PAIRED END mode
 ##############################################################################
+PAIRED=false
 OTHER_ARGS=""
-while getopts ":a:b:t:o:h:x:A:" opt; do
+while getopts ":a:b:t:o:h:x:A:p" opt; do
   case $opt in
   a) GTF_FILE=$OPTARG ;;
   b) INPUT_BAM=$OPTARG ;;
@@ -19,6 +21,7 @@ while getopts ":a:b:t:o:h:x:A:" opt; do
   h) HARMONIZED=$OPTARG ;;
   x) MAP_FILE=$OPTARG ;;
   A) OTHER_ARGS=$OPTARG ;;
+  p) PAIRED=true ;;
   \?)
     echo "Invalid option: -$OPTARG"
     exit 1
@@ -70,8 +73,12 @@ if [ -n "$OTHER_ARGS" ]; then
 fi
 
 #### Counting ####
+PAIRED_ARG=""
+if [ "$PAIRED" = "true" ]; then
+  PAIRED_ARG="-p --countReadPairs"
+fi
 # shellcheck disable=SC2086
-if ! featureCounts -T $THREADS $OTHER_ARGS -a "$GTF_FILE" -o "$OUTPUT" "$INPUT_BAM"; then
+if ! featureCounts -T $THREADS $PAIRED_ARG $OTHER_ARGS -a "$GTF_FILE" -o "$OUTPUT" "$INPUT_BAM"; then
   echo "An error occurred during featureCounts execution!"
   exit 8
 fi

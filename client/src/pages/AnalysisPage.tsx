@@ -266,7 +266,7 @@ export default function AnalysisPage() {
 
   /* ----- sequencing state ----- */
   const [seqParams, setSeqParams] = useState<SeqParams>({
-    inputType: 'single',
+    inputType: 'paired',
     inputFormat: 'FASTQ',
     files: [],
     algorithm: config.algorithms[0] || '',

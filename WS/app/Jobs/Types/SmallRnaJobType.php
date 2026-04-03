@@ -256,7 +256,8 @@ class SmallRnaJobType extends AbstractJob
                         $this->model,
                         $countingInputFile,
                         $this->getGenomeAnnotation('human_sncrna_annotation_name'),
-                        $threads
+                        $threads,
+                        $paired
                     );
                     break;
                 case self::SALMON:

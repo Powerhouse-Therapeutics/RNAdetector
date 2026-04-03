@@ -286,7 +286,8 @@ class LongRnaJobType extends AbstractJob
                         $this->model,
                         $countingInputFile,
                         $this->getGenomeAnnotation(),
-                        $threads
+                        $threads,
+                        $paired
                     );
                     break;
                 case self::SALMON:
