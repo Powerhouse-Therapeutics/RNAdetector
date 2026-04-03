@@ -130,8 +130,7 @@ export default function ServerAdminPage() {
         setStatus(statusResult.value);
       }
       if (pkgResult.status === 'fulfilled') {
-        const pkgData = pkgResult.value;
-        const list = pkgData?.data ?? pkgData;
+        const list = pkgResult.value;
         setPackages(Array.isArray(list) ? list : []);
       }
     } catch {

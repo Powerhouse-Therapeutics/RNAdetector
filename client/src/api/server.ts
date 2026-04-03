@@ -18,8 +18,12 @@ export async function checkDiskSpace(signal?: AbortSignal): Promise<{ warning: b
 
 export async function getPackages(signal?: AbortSignal) {
   const { data } = await client.get('/server/packages', { signal });
-  if (!data || typeof data !== 'object') return { data: [] };
-  return data;
+  if (!data || typeof data !== 'object') return [];
+  // Handle various response shapes: { data: [...] }, { data: { packages: [...] } }, or [...]
+  const inner = data.data ?? data;
+  if (Array.isArray(inner)) return inner;
+  if (inner && typeof inner === 'object' && Array.isArray(inner.packages)) return inner.packages;
+  return [];
 }
 
 export async function installPackage(name: string) {

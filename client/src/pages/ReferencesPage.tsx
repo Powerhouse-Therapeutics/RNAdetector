@@ -115,8 +115,7 @@ export default function ReferencesPage() {
         setReferences(Array.isArray(refsResponse) ? refsResponse : (refsResponse as any).data ?? []);
       }
       if (pkgsResult.status === 'fulfilled') {
-        const pkgsResponse = pkgsResult.value;
-        const pkgList: PackageInfo[] = Array.isArray(pkgsResponse) ? pkgsResponse : pkgsResponse.data ?? [];
+        const pkgList: PackageInfo[] = Array.isArray(pkgsResult.value) ? pkgsResult.value : [];
         setPackages(pkgList);
         // Seed install states from packages that are already installing
         const seeded: Record<string, InstallState> = {};
