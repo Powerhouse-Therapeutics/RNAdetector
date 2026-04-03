@@ -70,6 +70,11 @@ export async function deleteJob(id: number): Promise<void> {
   await client.delete(`jobs/${id}`);
 }
 
+export async function retryJob(id: number): Promise<Job> {
+  const response = await client.post(`jobs/${id}/retry`);
+  return response.data?.data ?? response.data;
+}
+
 export async function fetchJobTypes(signal?: AbortSignal): Promise<string[]> {
   const response = await client.get('job-types', { signal });
   const raw = response.data?.data ?? response.data;

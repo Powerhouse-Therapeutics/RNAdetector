@@ -50,6 +50,8 @@ Route::group(
 
         Route::middleware('can:submit-job,job')->get('/jobs/{job}/submit', 'Api\\JobController@submit')->name('jobs.submit');
 
+        Route::post('/jobs/{job}/retry', 'Api\\JobController@retry')->name('jobs.retry');
+
         Route::middleware('can:upload-job,job')->any('/jobs/{job}/upload/{any?}', 'Api\\JobController@upload')->where('any', '.*')->name(
             'jobs.upload'
         );
@@ -80,6 +82,10 @@ Route::group(
         Route::get('/templates', 'Api\\TemplateController@index');
         Route::get('/templates/{name}/download', 'Api\\TemplateController@download');
 
+        Route::get('/analysis-templates', 'Api\\TemplateController@listAnalysisTemplates');
+        Route::post('/analysis-templates', 'Api\\TemplateController@storeAnalysisTemplate');
+        Route::delete('/analysis-templates/{id}', 'Api\\TemplateController@destroyAnalysisTemplate');
+
         // File browser routes
         Route::get('/files/volumes', 'Api\FileBrowserController@volumes');
         Route::get('/files/browse', 'Api\FileBrowserController@browse');
@@ -95,6 +101,9 @@ Route::group(
         Route::get('/jobs/{job}/report', 'Api\ReportController@show');
         Route::get('/jobs/{job}/report/status', 'Api\ReportController@status');
         Route::post('/jobs/{job}/report/generate', 'Api\ReportController@generate');
+
+        // Interactive plot files
+        Route::get('/jobs/{job}/plots/{name}', 'Api\JobController@plot');
     }
 );
 

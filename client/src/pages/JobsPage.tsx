@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, Chip, IconButton, Tooltip, Select, MenuItem, FormControl, InputLabel,
-  Skeleton, Stack, TablePagination, Collapse, LinearProgress, keyframes,
+  Skeleton, Stack, TablePagination, Collapse, LinearProgress, keyframes, Tabs, Tab,
 } from '@mui/material';
 import {
-  Visibility, Download, Delete, Refresh,
+  Visibility, Download, Delete, Refresh, Replay,
   KeyboardArrowDown, KeyboardArrowRight, ErrorOutline,
 } from '@mui/icons-material';
 import type { Job, JobStatus } from '@/types';
-import { fetchJobs, fetchJob, deleteJob } from '@/api/jobs';
+import { fetchJobs, fetchJob, deleteJob, retryJob } from '@/api/jobs';
 import useNotificationStore from '@/stores/notificationStore';
+import PlotViewer from '@/components/ui/PlotViewer';
 
 /* ------------------------------------------------------------------ */
 /*  Constants & helpers                                                */
@@ -149,6 +150,34 @@ interface DetailPanelProps {
   loading: boolean;
 }
 
+/** Determine which plot names are available for a job based on type and status. */
+function getAvailablePlots(job: Job): { name: string; title: string }[] {
+  const plots: { name: string; title: string }[] = [];
+  if (job.status !== 'completed') return plots;
+
+  const jt = job.type || '';
+  // DEGs analysis jobs
+  if (jt === 'diff_expr_analysis_job_type' || jt === 'diff_expr') {
+    plots.push({ name: 'volcano_plot', title: 'Volcano Plot' });
+    plots.push({ name: 'ma_plot', title: 'MA Plot' });
+  }
+  // Sequencing jobs that may have counts output
+  if (
+    jt === 'long_rna_job_type' || jt === 'long_rna' ||
+    jt === 'small_rna_job_type' || jt === 'small_rna' ||
+    jt === 'samples_group_job_type' || jt === 'sample_group'
+  ) {
+    plots.push({ name: 'pca_plot', title: 'PCA Plot' });
+    plots.push({ name: 'correlation_heatmap', title: 'Correlation Heatmap' });
+  }
+  return plots;
+}
+
+/** Build relative API path for a plot file (used by the axios client which has baseURL). */
+function plotUrl(jobId: number, plotName: string): string {
+  return `jobs/${jobId}/plots/${plotName}`;
+}
+
 function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
   const j = detailJob ?? job;
   const progress = parseProgress(j.log);
@@ -156,9 +185,12 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
   const elapsed = elapsedMs(startRef);
   const isActive = j.status === 'processing';
   const remaining = isActive ? estimateRemaining(elapsed, progress) : null;
+  const [detailTab, setDetailTab] = useState(0);
 
   const params = j.parameters && typeof j.parameters === 'object'
     ? Object.entries(j.parameters) : [];
+
+  const availablePlots = useMemo(() => getAvailablePlots(j), [j]);
 
   return (
     <Box
@@ -243,83 +275,124 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
         )}
       </Stack>
 
-      {/* Parameters summary */}
-      {params.length > 0 && (
-        <Box sx={{ mb: 2.5 }}>
-          <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500, mb: 0.75, display: 'block' }}>
-            Parameters
-          </Typography>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-              gap: 0.5,
-              background: 'rgba(13, 17, 23, 0.5)',
-              borderRadius: '8px',
-              p: 1.5,
-              fontFamily: 'JetBrains Mono',
-              fontSize: '0.73rem',
-              border: '1px solid rgba(88, 166, 255, 0.04)',
-            }}
-          >
-            {params.map(([k, v]) => (
-              <Box key={k} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <Typography
-                  component="span"
-                  sx={{ color: '#58A6FF', fontFamily: 'inherit', fontSize: 'inherit', mr: 0.5 }}
-                >
-                  {k}:
-                </Typography>
-                <Typography
-                  component="span"
-                  sx={{ color: 'rgba(201, 209, 217, 0.65)', fontFamily: 'inherit', fontSize: 'inherit' }}
-                >
-                  {typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
+      {/* Tabs: Parameters / Log / Visualizations */}
+      <Tabs
+        value={detailTab}
+        onChange={(_, v) => setDetailTab(v)}
+        sx={{
+          mb: 2,
+          minHeight: 32,
+          '& .MuiTabs-indicator': { bgcolor: '#58A6FF', height: 2 },
+          '& .MuiTab-root': {
+            color: '#8B949E',
+            fontWeight: 600,
+            fontSize: '0.75rem',
+            letterSpacing: '0.03em',
+            textTransform: 'uppercase',
+            minHeight: 32,
+            py: 0.5,
+            '&.Mui-selected': { color: '#58A6FF' },
+          },
+        }}
+      >
+        <Tab label="Log" />
+        <Tab label="Parameters" />
+        {availablePlots.length > 0 && <Tab label="Visualizations" />}
+      </Tabs>
+
+      {/* Tab: Log */}
+      {detailTab === 0 && (
+        <Box>
+          {loading && !j.log ? (
+            <Skeleton variant="rectangular" height={120} sx={{ borderRadius: '8px' }} />
+          ) : j.log ? (
+            <Box
+              sx={{
+                maxHeight: 340,
+                overflow: 'auto',
+                background: 'rgba(13, 17, 23, 0.8)',
+                borderRadius: '8px',
+                p: 2,
+                fontFamily: 'JetBrains Mono',
+                fontSize: '0.72rem',
+                lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+                border: '1px solid rgba(88, 166, 255, 0.06)',
+                '&::-webkit-scrollbar': { width: 6 },
+                '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+                '&::-webkit-scrollbar-thumb': {
+                  bgcolor: 'rgba(88, 166, 255, 0.15)',
+                  borderRadius: 3,
+                  '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.25)' },
+                },
+              }}
+            >
+              {highlightLog(j.log)}
+            </Box>
+          ) : (
+            <Typography variant="body2" sx={{ color: '#484F58', fontStyle: 'italic' }}>
+              No log output available.
+            </Typography>
+          )}
         </Box>
       )}
 
-      {/* Log readout with syntax highlighting */}
-      <Box>
-        <Typography variant="caption" sx={{ color: '#8B949E', fontWeight: 500, mb: 0.75, display: 'block' }}>
-          Log
-        </Typography>
-        {loading && !j.log ? (
-          <Skeleton variant="rectangular" height={120} sx={{ borderRadius: '8px' }} />
-        ) : j.log ? (
-          <Box
-            sx={{
-              maxHeight: 340,
-              overflow: 'auto',
-              background: 'rgba(13, 17, 23, 0.8)',
-              borderRadius: '8px',
-              p: 2,
-              fontFamily: 'JetBrains Mono',
-              fontSize: '0.72rem',
-              lineHeight: 1.6,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-              border: '1px solid rgba(88, 166, 255, 0.06)',
-              '&::-webkit-scrollbar': { width: 6 },
-              '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
-              '&::-webkit-scrollbar-thumb': {
-                bgcolor: 'rgba(88, 166, 255, 0.15)',
-                borderRadius: 3,
-                '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.25)' },
-              },
-            }}
-          >
-            {highlightLog(j.log)}
-          </Box>
-        ) : (
-          <Typography variant="body2" sx={{ color: '#484F58', fontStyle: 'italic' }}>
-            No log output available.
-          </Typography>
-        )}
-      </Box>
+      {/* Tab: Parameters */}
+      {detailTab === 1 && (
+        <Box>
+          {params.length > 0 ? (
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: 0.5,
+                background: 'rgba(13, 17, 23, 0.5)',
+                borderRadius: '8px',
+                p: 1.5,
+                fontFamily: 'JetBrains Mono',
+                fontSize: '0.73rem',
+                border: '1px solid rgba(88, 166, 255, 0.04)',
+              }}
+            >
+              {params.map(([k, v]) => (
+                <Box key={k} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Typography
+                    component="span"
+                    sx={{ color: '#58A6FF', fontFamily: 'inherit', fontSize: 'inherit', mr: 0.5 }}
+                  >
+                    {k}:
+                  </Typography>
+                  <Typography
+                    component="span"
+                    sx={{ color: 'rgba(201, 209, 217, 0.65)', fontFamily: 'inherit', fontSize: 'inherit' }}
+                  >
+                    {typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Typography variant="body2" sx={{ color: '#484F58', fontStyle: 'italic' }}>
+              No parameters available.
+            </Typography>
+          )}
+        </Box>
+      )}
+
+      {/* Tab: Visualizations */}
+      {detailTab === 2 && availablePlots.length > 0 && (
+        <Box>
+          {availablePlots.map((plot) => (
+            <PlotViewer
+              key={plot.name}
+              src={plotUrl(j.id, plot.name)}
+              title={plot.title}
+              height={480}
+            />
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -534,6 +607,17 @@ export default function JobsPage() {
       loadJobs();
     } catch {
       notify('Failed to delete job', 'error');
+    }
+  };
+
+  /* ---- Retry ---- */
+  const handleRetry = async (id: number) => {
+    try {
+      await retryJob(id);
+      notify('Job resubmitted', 'success');
+      loadJobs();
+    } catch {
+      notify('Failed to retry job', 'error');
     }
   };
 
@@ -912,6 +996,22 @@ export default function JobsPage() {
                                       <Visibility sx={{ fontSize: 16 }} />
                                     </IconButton>
                                   </Tooltip>
+                                  {job.status === 'failed' && (
+                                    <Tooltip title="Retry">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleRetry(job.id)}
+                                        sx={{
+                                          color: '#D29922',
+                                          borderRadius: '6px',
+                                          transition: 'all 200ms ease',
+                                          '&:hover': { bgcolor: 'rgba(210, 153, 34, 0.1)' },
+                                        }}
+                                      >
+                                        <Replay sx={{ fontSize: 16 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
                                   <Tooltip title="Delete">
                                     <IconButton
                                       size="small"
@@ -1043,6 +1143,22 @@ export default function JobsPage() {
                                 }}
                               >
                                 <Download fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {job.status === 'failed' && (
+                            <Tooltip title="Retry">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleRetry(job.id)}
+                                sx={{
+                                  color: '#D29922',
+                                  borderRadius: '6px',
+                                  transition: 'all 200ms ease',
+                                  '&:hover': { bgcolor: 'rgba(210, 153, 34, 0.1)' },
+                                }}
+                              >
+                                <Replay fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           )}

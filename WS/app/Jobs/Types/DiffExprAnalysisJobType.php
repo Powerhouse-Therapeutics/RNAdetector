@@ -611,6 +611,30 @@ class DiffExprAnalysisJobType extends AbstractJob
         }
         Utils::recursiveChmod($degReport, 0777);
         $this->log('DEGs Analysis completed.');
+
+        // Generate interactive visualizations (non-blocking)
+        try {
+            $this->log('Generating interactive visualizations...');
+            AbstractJob::runCommand(
+                [
+                    'Rscript',
+                    self::scriptPath('generate_volcano_ma.R'),
+                    '-i',
+                    $degReport,
+                    '-o',
+                    $degReport,
+                ],
+                $this->model->getAbsoluteJobDirectory(),
+                null,
+                function ($type, $buffer) {
+                    $this->log($buffer, false);
+                }
+            );
+            $this->log('Interactive visualizations generated.');
+        } catch (\Throwable $e) {
+            $this->log('Warning: visualization generation failed: ' . $e->getMessage());
+        }
+
         $degReportZip = $this->model->getJobFile('deg_report_', '.zip');
         $degReportZipAbsolute = $this->model->absoluteJobPath($degReportZip);
         $degReportZipUrl = \Storage::disk('public')->url($degReportZip);

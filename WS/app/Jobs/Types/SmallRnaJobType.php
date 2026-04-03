@@ -14,6 +14,7 @@ use App\Jobs\Types\Traits\ConvertsSamToBamTrait;
 use App\Jobs\Types\Traits\HandlesCompressedFastqTrait;
 use App\Jobs\Types\Traits\HasCommonParameters;
 use App\Jobs\Types\Traits\IndexesBAMTrait;
+use App\Jobs\Types\Traits\RunQualityControlTrait;
 use App\Jobs\Types\Traits\RunTrimGaloreTrait;
 use App\Jobs\Types\Traits\UseAlignmentTrait;
 use App\Jobs\Types\Traits\UseCountingTrait;
@@ -29,7 +30,7 @@ use Illuminate\Validation\Rule;
 
 class SmallRnaJobType extends AbstractJob
 {
-    use HasCommonParameters, ConvertsSamToBamTrait, RunTrimGaloreTrait, UseAlignmentTrait, UseCountingTrait, HandlesCompressedFastqTrait;
+    use HasCommonParameters, ConvertsSamToBamTrait, RunTrimGaloreTrait, RunQualityControlTrait, UseAlignmentTrait, UseCountingTrait, HandlesCompressedFastqTrait;
     use UseTranscriptome, UseGenome, UseGenomeAnnotation, IndexesBAMTrait, UsesJBrowseTrait;
 
     /**
@@ -171,7 +172,10 @@ class SmallRnaJobType extends AbstractJob
         $bamOutput = null;
         $count = true;
         $makeJBrowse = true;
+        $qcReportPath = null;
         if ($inputType === self::FASTQ) {
+            // Run quality control (non-blocking - failures are logged but don't stop the pipeline)
+            $qcReportPath = $this->runQualityControl($this->model, $paired, $firstInputFile, $secondInputFile, $threads);
             $this->log('Checking if input is compressed...');
             $firstInputFile = self::checksForCompression($this->model, $firstInputFile);
             $secondInputFile = self::checksForCompression($this->model, $secondInputFile);
@@ -304,6 +308,9 @@ class SmallRnaJobType extends AbstractJob
                 'path' => $harmonizedTxFile,
                 'url'  => $harmonizedTxUrl,
             ];
+        }
+        if ($qcReportPath !== null) {
+            $output['qcReport'] = $qcReportPath;
         }
         $this->model->setOutput($output);
         $this->log('Analysis completed.');

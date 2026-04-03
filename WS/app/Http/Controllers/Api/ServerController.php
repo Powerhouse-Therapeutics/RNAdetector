@@ -35,6 +35,10 @@ class ServerController extends Controller
         $hours = intdiv($uptimeSeconds % 86400, 3600);
         $uptime = $days > 0 ? "{$days}d {$hours}h" : "{$hours}h";
 
+        $diskTotal = disk_total_space('/');
+        $diskFree = disk_free_space('/');
+        $diskUsagePercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) * 100, 1) : 0;
+
         return response()->json(['data' => [
             'version'             => \App\Utils::VERSION ?? '0.0.3',
             'cores'               => $cores,
@@ -43,6 +47,10 @@ class ServerController extends Controller
             'available_memory_gb' => round($availKb / 1048576, 1),
             'docker_running'      => true,
             'uptime'              => $uptime,
+            'disk_total_gb'       => round($diskTotal / 1073741824, 1),
+            'disk_free_gb'        => round($diskFree / 1073741824, 1),
+            'disk_usage_percent'  => $diskUsagePercent,
+            'disk_warning'        => $diskFree < (50 * 1073741824),
         ]]);
     }
 

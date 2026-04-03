@@ -229,6 +229,104 @@ class JobController extends Controller
     }
 
     /**
+     * Retry a failed job by creating a new job with the same parameters
+     *
+     * @param \App\Models\Job $job
+     *
+     * @return \App\Http\Resources\Job
+     */
+    public function retry(Job $job): JobResource
+    {
+        $this->authorize('view', $job);
+
+        if ($job->status !== Job::FAILED) {
+            abort(400, 'Only failed jobs can be retried.');
+        }
+
+        $userId = \Auth::id();
+        if (empty($userId)) {
+            abort(401, 'Authentication required.');
+        }
+
+        $newJob = Job::create(
+            [
+                'sample_code' => $job->sample_code,
+                'name'        => $job->name . ' (retry)',
+                'job_type'    => $job->job_type,
+                'status'      => Job::READY,
+                'job_parameters' => $job->job_parameters ?? [],
+                'job_output'     => [],
+                'log'            => '',
+                'user_id'        => $userId,
+            ]
+        );
+        $newJob->save();
+        $newJob->getJobDirectory();
+
+        // Submit the new job
+        $newJob->setStatus(Job::QUEUED);
+        JobRequest::dispatch($newJob);
+
+        return new JobResource($newJob);
+    }
+
+    /**
+     * Serve an interactive plot HTML file for a job
+     *
+     * @param \App\Models\Job $job
+     * @param string          $name
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function plot(Job $job, string $name)
+    {
+        $this->authorize('view', $job);
+
+        // Sanitize name: allow only alphanumeric, underscore, and hyphen
+        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $name)) {
+            abort(400, 'Invalid plot name.');
+        }
+
+        $jobDir = $job->getAbsoluteJobDirectory();
+        if (empty($jobDir) || !is_dir($jobDir)) {
+            abort(404, 'Job directory not found.');
+        }
+
+        // Search for the plot file in the job directory and subdirectories
+        $plotFile = null;
+        $candidate = $jobDir . '/' . $name . '.html';
+        if (file_exists($candidate)) {
+            $plotFile = $candidate;
+        } else {
+            // Search in subdirectories (e.g., deg_report_*)
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($jobDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($iterator as $file) {
+                if ($file->getFilename() === $name . '.html') {
+                    $plotFile = $file->getPathname();
+                    break;
+                }
+            }
+        }
+
+        if ($plotFile === null || !file_exists($plotFile)) {
+            abort(404, 'Plot not found.');
+        }
+
+        // Ensure the file is within the job directory (prevent path traversal)
+        $realJobDir = realpath($jobDir);
+        $realPlotFile = realpath($plotFile);
+        if ($realJobDir === false || $realPlotFile === false || strpos($realPlotFile, $realJobDir) !== 0) {
+            abort(403, 'Access denied.');
+        }
+
+        return response(file_get_contents($plotFile), 200)
+            ->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    /**
      * Upload a file to the specified job
      *
      * @param \App\Models\Job $job

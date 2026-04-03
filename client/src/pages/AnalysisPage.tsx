@@ -39,12 +39,20 @@ import {
   Delete as DeleteIcon,
   FolderOpen as FolderOpenIcon,
   FileUpload as FileUploadIcon,
+  BookmarkBorder as SaveTemplateIcon,
+  BookmarkAdded as TemplateLoadedIcon,
 } from '@mui/icons-material';
 import type { FileEntry, JobType, Reference, Annotation, Job } from '@/types';
 import { createJob, submitJob, fetchJobs } from '@/api/jobs';
 import { fetchReferences } from '@/api/references';
 import { fetchAnnotations } from '@/api/annotations';
 import { getErrorMessage } from '@/api/client';
+import { checkDiskSpace } from '@/api/server';
+import {
+  listAnalysisTemplates,
+  saveAnalysisTemplate,
+  type AnalysisTemplate,
+} from '@/api/templates';
 import AnalysisWizard, { type StepConfig } from '@/components/analysis/AnalysisWizard';
 import ServerFileBrowser from '@/components/files/ServerFileBrowser';
 import ResourceSelector from '@/components/analysis/ResourceSelector';
@@ -92,6 +100,7 @@ interface PathwayParams {
   lfcThreshold: number;
   pathwayPCutoff: number;
   pathwayUseFdr: boolean;
+  enableGsea: boolean;
 }
 
 // Algorithm display names -> backend values
@@ -247,6 +256,14 @@ export default function AnalysisPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  /* ----- template state ----- */
+  const [analysisTemplates, setAnalysisTemplates] = useState<AnalysisTemplate[]>([]);
+  const [, setLoadingTemplates] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState('');
+  const [saveTemplateDesc, setSaveTemplateDesc] = useState('');
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
   /* ----- sequencing state ----- */
   const [seqParams, setSeqParams] = useState<SeqParams>({
     inputType: 'single',
@@ -258,6 +275,11 @@ export default function AnalysisPage() {
     threads: 32,
     memoryGB: 64,
   });
+  /* ----- fusion detection state ----- */
+  const [enableFusion, setEnableFusion] = useState(true);
+  /* ----- disk warning confirmation state ----- */
+  const [diskConfirmOpen, setDiskConfirmOpen] = useState(false);
+  const [diskFreeGb, setDiskFreeGb] = useState<number>(-1);
   /* ----- sample management state ----- */
   const [samples, setSamples] = useState<SampleEntry[]>([]);
   const [showBulkInput, setShowBulkInput] = useState(false);
@@ -299,6 +321,7 @@ export default function AnalysisPage() {
     lfcThreshold: 0,
     pathwayPCutoff: 0.05,
     pathwayUseFdr: true,
+    enableGsea: true,
   });
 
   /* ----- fetch references & annotations for sequencing types ----- */
@@ -335,10 +358,114 @@ export default function AnalysisPage() {
     setSamples([]);
     setBulkText('');
     setShowBulkInput(false);
+    setEnableFusion(type === 'long_rna' || type === 'full_pipeline');
     setSgParams({ selectedJobIds: [] });
     setDegsParams({ sourceSampleGroup: '', sampleType: 'gene', statsMethods: ['deseq'], contrasts: [{ control: '', case: '' }], pcut: 0.05, norm: 'deseq', adjustMethod: 'BH' });
-    setPwParams({ degsAnalysis: '', organism: 'hsa', degsPCutoff: 0.05, degsUseFdr: true, lfcThreshold: 0, pathwayPCutoff: 0.05, pathwayUseFdr: true });
+    setPwParams({ degsAnalysis: '', organism: 'hsa', degsPCutoff: 0.05, degsUseFdr: true, lfcThreshold: 0, pathwayPCutoff: 0.05, pathwayUseFdr: true, enableGsea: true });
   }, [type]);
+
+  /* ----- load analysis templates ----- */
+  useEffect(() => {
+    setLoadingTemplates(true);
+    listAnalysisTemplates()
+      .then((tpls) => setAnalysisTemplates(tpls.filter((t) => t.type === type)))
+      .catch(() => {})
+      .finally(() => setLoadingTemplates(false));
+  }, [type]);
+
+  const loadTemplate = useCallback(
+    (tpl: AnalysisTemplate) => {
+      const p = tpl.parameters;
+      if (p.jobName) setJobName(String(p.jobName));
+      if (isSequencing(type)) {
+        setSeqParams((prev) => ({
+          ...prev,
+          inputType: (p.inputType as 'single' | 'paired') || prev.inputType,
+          inputFormat: (p.inputFormat as 'FASTQ' | 'BAM') || prev.inputFormat,
+          algorithm: (p.algorithm as string) || prev.algorithm,
+          threads: typeof p.threads === 'number' ? p.threads : prev.threads,
+          memoryGB: typeof p.memoryGB === 'number' ? p.memoryGB : prev.memoryGB,
+        }));
+      } else if (type === 'diff_expr' && p.degsParams && typeof p.degsParams === 'object') {
+        const d = p.degsParams as Record<string, unknown>;
+        setDegsParams((prev) => ({
+          ...prev,
+          sampleType: (d.sampleType as 'gene' | 'transcript') || prev.sampleType,
+          statsMethods: Array.isArray(d.statsMethods)
+            ? (d.statsMethods as string[])
+            : prev.statsMethods,
+          pcut: typeof d.pcut === 'number' ? d.pcut : prev.pcut,
+          norm: (d.norm as 'deseq' | 'edger') || prev.norm,
+          adjustMethod: (d.adjustMethod as string) || prev.adjustMethod,
+        }));
+      } else if (type === 'pathway' && p.pwParams && typeof p.pwParams === 'object') {
+        const pw = p.pwParams as Record<string, unknown>;
+        setPwParams((prev) => ({
+          ...prev,
+          organism: (pw.organism as 'hsa' | 'mmu' | 'rno') || prev.organism,
+          degsPCutoff: typeof pw.degsPCutoff === 'number' ? pw.degsPCutoff : prev.degsPCutoff,
+          degsUseFdr: typeof pw.degsUseFdr === 'boolean' ? pw.degsUseFdr : prev.degsUseFdr,
+          lfcThreshold:
+            typeof pw.lfcThreshold === 'number' ? pw.lfcThreshold : prev.lfcThreshold,
+          pathwayPCutoff:
+            typeof pw.pathwayPCutoff === 'number' ? pw.pathwayPCutoff : prev.pathwayPCutoff,
+          pathwayUseFdr:
+            typeof pw.pathwayUseFdr === 'boolean' ? pw.pathwayUseFdr : prev.pathwayUseFdr,
+        }));
+      }
+    },
+    [type],
+  );
+
+  const buildTemplateParams = useCallback((): Record<string, unknown> => {
+    const params: Record<string, unknown> = { jobName };
+    if (isSequencing(type)) {
+      params.inputType = seqParams.inputType;
+      params.inputFormat = seqParams.inputFormat;
+      params.algorithm = seqParams.algorithm;
+      params.threads = seqParams.threads;
+      params.memoryGB = seqParams.memoryGB;
+    } else if (type === 'diff_expr') {
+      params.degsParams = {
+        sampleType: degsParams.sampleType,
+        statsMethods: degsParams.statsMethods,
+        pcut: degsParams.pcut,
+        norm: degsParams.norm,
+        adjustMethod: degsParams.adjustMethod,
+      };
+    } else if (type === 'pathway') {
+      params.pwParams = {
+        organism: pwParams.organism,
+        degsPCutoff: pwParams.degsPCutoff,
+        degsUseFdr: pwParams.degsUseFdr,
+        lfcThreshold: pwParams.lfcThreshold,
+        pathwayPCutoff: pwParams.pathwayPCutoff,
+        pathwayUseFdr: pwParams.pathwayUseFdr,
+      };
+    }
+    return params;
+  }, [type, jobName, seqParams, degsParams, pwParams]);
+
+  const handleSaveTemplate = async () => {
+    if (!saveTemplateName.trim()) return;
+    setSavingTemplate(true);
+    try {
+      const saved = await saveAnalysisTemplate({
+        name: saveTemplateName.trim(),
+        description: saveTemplateDesc.trim(),
+        type,
+        parameters: buildTemplateParams(),
+      });
+      setAnalysisTemplates((prev) => [saved, ...prev]);
+      setSaveTemplateOpen(false);
+      setSaveTemplateName('');
+      setSaveTemplateDesc('');
+    } catch {
+      // silently fail
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
 
   /* ----- filtered job lists ----- */
   const completedSeqJobs = useMemo(
@@ -498,7 +625,7 @@ export default function AnalysisPage() {
   /* ============================================================
    *  SUBMIT
    * ============================================================ */
-  const handleSubmit = async () => {
+  const doSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -539,6 +666,9 @@ export default function AnalysisPage() {
           if (ann) sampleParams.annotation = ann.name;
           if (algoBackend === 'salmon' && ref) sampleParams.transcriptome = ref.name;
           if (algoBackend !== 'salmon') sampleParams.countingAlgorithm = 'feature-counts';
+          if (algoBackend === 'star') {
+            sampleParams.enable_fusion_detection = enableFusion;
+          }
 
           const sampleName = sample.name || `Sample_${idx + 1}`;
           const sampleJobName = numSamples > 1 ? `${jobName} - ${sampleName}` : jobName;
@@ -586,6 +716,9 @@ export default function AnalysisPage() {
             p_cutoff: pwParams.pathwayPCutoff,
             p_use_fdr: pwParams.pathwayUseFdr,
           },
+          gsea: {
+            enabled: pwParams.enableGsea,
+          },
         };
       }
 
@@ -601,6 +734,25 @@ export default function AnalysisPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      const disk = await checkDiskSpace();
+      if (disk.warning) {
+        setDiskFreeGb(disk.freeGb);
+        setDiskConfirmOpen(true);
+        return;
+      }
+    } catch {
+      // If disk check fails, proceed anyway
+    }
+    await doSubmit();
+  };
+
+  const handleDiskConfirmProceed = () => {
+    setDiskConfirmOpen(false);
+    doSubmit();
   };
 
   /* ============================================================
@@ -621,6 +773,35 @@ export default function AnalysisPage() {
             {config.description}
           </Typography>
         </Paper>
+        {analysisTemplates.length > 0 && (
+          <FormControl fullWidth size="small">
+            <InputLabel sx={{ color: '#8B949E' }}>Load Template</InputLabel>
+            <Select
+              value=""
+              label="Load Template"
+              onChange={(e) => {
+                const tpl = analysisTemplates.find((t) => t.id === e.target.value);
+                if (tpl) loadTemplate(tpl);
+              }}
+              startAdornment={<TemplateLoadedIcon sx={{ color: '#58A6FF', mr: 1 }} />}
+              sx={{
+                borderRadius: '8px',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#30363D',
+                  transition: 'border-color 200ms ease',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#58A6FF' },
+              }}
+            >
+              {analysisTemplates.map((tpl) => (
+                <MenuItem key={tpl.id} value={tpl.id}>
+                  {tpl.name}
+                  {tpl.description ? ` - ${tpl.description}` : ''}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
         <TextField
           label="Job Name"
           value={jobName}
@@ -1045,6 +1226,31 @@ export default function AnalysisPage() {
           onThreadsChange={(v) => updateSeq('threads', v)}
           onMemoryChange={(v) => updateSeq('memoryGB', v)}
         />
+
+        {(ALGO_MAP[seqParams.algorithm] || seqParams.algorithm.toLowerCase()) === 'star' && (
+          <FormControlLabel
+            control={
+              <Switch
+                checked={enableFusion}
+                onChange={(e) => setEnableFusion(e.target.checked)}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#58A6FF' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'rgba(88, 166, 255, 0.4)' },
+                }}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2" sx={{ color: '#C9D1D9' }}>
+                  Enable fusion gene detection (STAR only)
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#8B949E' }}>
+                  Detect gene fusions using Arriba or STAR-Fusion. Non-blocking; failures will not stop the pipeline.
+                </Typography>
+              </Box>
+            }
+          />
+        )}
       </Stack>
     ),
   };
@@ -1536,6 +1742,20 @@ export default function AnalysisPage() {
               label="Use FDR for Pathways"
             />
           </Grid>
+          <Grid item xs={12}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={pwParams.enableGsea}
+                  onChange={(e) =>
+                    setPwParams((prev) => ({ ...prev, enableGsea: e.target.checked }))
+                  }
+                  sx={{ '&.Mui-checked': { color: '#58A6FF' } }}
+                />
+              }
+              label="Enable Gene Set Enrichment Analysis (fgsea)"
+            />
+          </Grid>
         </Grid>
       </Stack>
     ),
@@ -1566,6 +1786,10 @@ export default function AnalysisPage() {
         },
         { label: 'Resources', value: `${seqParams.threads} threads, ${seqParams.memoryGB} GB RAM` },
       );
+      const algoBackend = (ALGO_MAP[seqParams.algorithm] || seqParams.algorithm.toLowerCase());
+      if (algoBackend === 'star') {
+        items.push({ label: 'Fusion Detection', value: enableFusion ? 'Enabled' : 'Disabled' });
+      }
     } else if (analysisType === 'sample_group') {
       const names = sgParams.selectedJobIds
         .map((id) => {
@@ -1599,6 +1823,7 @@ export default function AnalysisPage() {
         { label: 'Log FC Threshold', value: String(pwParams.lfcThreshold) },
         { label: 'Pathway P-value Cutoff', value: String(pwParams.pathwayPCutoff) },
         { label: 'Use FDR (Pathways)', value: pwParams.pathwayUseFdr ? 'Yes' : 'No' },
+        { label: 'GSEA (fgsea)', value: pwParams.enableGsea ? 'Enabled' : 'Disabled' },
       );
     }
 
@@ -1660,6 +1885,79 @@ export default function AnalysisPage() {
             </Box>
           )}
         </Paper>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<SaveTemplateIcon />}
+          onClick={() => setSaveTemplateOpen(true)}
+          sx={{
+            alignSelf: 'flex-start',
+            borderColor: 'rgba(88, 166, 255, 0.3)',
+            color: '#58A6FF',
+            borderRadius: '8px',
+            '&:hover': { borderColor: '#58A6FF', bgcolor: 'rgba(88, 166, 255, 0.08)' },
+          }}
+        >
+          Save as Template
+        </Button>
+
+        {/* Save Template Dialog */}
+        <Dialog
+          open={saveTemplateOpen}
+          onClose={() => setSaveTemplateOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              bgcolor: '#0D1117',
+              backgroundImage: 'none',
+              border: '1px solid #21262D',
+              borderRadius: '12px',
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: '#C9D1D9' }}>Save Analysis Template</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="Template Name"
+                value={saveTemplateName}
+                onChange={(e) => setSaveTemplateName(e.target.value)}
+                fullWidth
+                required
+                autoFocus
+                sx={{
+                  '& .MuiOutlinedInput-root': { borderRadius: '8px' },
+                  '& .MuiInputLabel-root': { color: '#8B949E' },
+                }}
+              />
+              <TextField
+                label="Description (optional)"
+                value={saveTemplateDesc}
+                onChange={(e) => setSaveTemplateDesc(e.target.value)}
+                fullWidth
+                multiline
+                rows={2}
+                sx={{
+                  '& .MuiOutlinedInput-root': { borderRadius: '8px' },
+                  '& .MuiInputLabel-root': { color: '#8B949E' },
+                }}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setSaveTemplateOpen(false)} sx={{ color: '#8B949E' }}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSaveTemplate}
+              disabled={!saveTemplateName.trim() || savingTemplate}
+            >
+              {savingTemplate ? 'Saving...' : 'Save Template'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Stack>
     ),
   };
@@ -1702,7 +2000,7 @@ export default function AnalysisPage() {
     // fallback
     return [setupStep, reviewStep];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisType, jobName, seqParams, sgParams, degsParams, pwParams, groupColors, references, annotations, allJobs, loadingJobs, submitError, config, samples, showBulkInput, bulkText]);
+  }, [analysisType, jobName, seqParams, sgParams, degsParams, pwParams, groupColors, references, annotations, allJobs, loadingJobs, submitError, config, samples, showBulkInput, bulkText, enableFusion]);
 
   return (
     <Box>
@@ -1780,6 +2078,43 @@ export default function AnalysisPage() {
             }}
           >
             Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Disk space warning confirmation dialog */}
+      <Dialog
+        open={diskConfirmOpen}
+        onClose={() => setDiskConfirmOpen(false)}
+        PaperProps={{ sx: { bgcolor: '#0D1117', backgroundImage: 'none', border: '1px solid #21262D', borderRadius: '12px' } }}
+      >
+        <DialogTitle sx={{ borderBottom: '1px solid #21262D', pb: 2, color: '#D29922' }}>
+          Low Disk Space Warning
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2.5 }}>
+          <Typography variant="body2" sx={{ color: '#C9D1D9', mt: 1 }}>
+            Server has low disk space ({diskFreeGb >= 0 ? `${diskFreeGb} GB` : 'unknown amount'} free). Jobs may fail. Continue anyway?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ borderTop: '1px solid #21262D', px: 3, py: 2 }}>
+          <Button
+            onClick={() => setDiskConfirmOpen(false)}
+            sx={{ color: '#8B949E', borderRadius: '8px', transition: 'all 200ms ease', '&:hover': { bgcolor: '#21262D', color: '#C9D1D9' } }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleDiskConfirmProceed}
+            sx={{
+              borderRadius: '8px',
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #D29922, #B07D1B)',
+              transition: 'all 200ms ease',
+              '&:hover': { background: 'linear-gradient(135deg, #E0A82E, #D29922)' },
+            }}
+          >
+            Continue Anyway
           </Button>
         </DialogActions>
       </Dialog>

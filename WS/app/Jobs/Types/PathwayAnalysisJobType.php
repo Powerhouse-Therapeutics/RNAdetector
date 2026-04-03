@@ -224,6 +224,48 @@ class PathwayAnalysisJobType extends AbstractJob
             $this->setOutput('enhancedReportFile', ['path' => $enhancedReportPath, 'url' => $enhancedReportUrl]);
             $this->model->save();
         }
+        // Run standalone fgsea-based GSEA analysis if enabled
+        $enableFgsea = (bool)($this->getParameter('gsea.enabled', true));
+        if ($enableFgsea) {
+            $this->log('Running Gene Set Enrichment Analysis (fgsea)...');
+            $gseaOutputDir = $this->model->getJobFile('gsea_report_');
+            $gseaReport = $this->model->absoluteJobPath($gseaOutputDir);
+            try {
+                AbstractJob::runCommand(
+                    [
+                        'Rscript',
+                        self::scriptPath('gsea_analysis.R'),
+                        '-i',
+                        $degReportDirectory,
+                        '-o',
+                        $gseaReport,
+                        '--organism',
+                        $pathwayParameters['organism'],
+                        '--p-cutoff',
+                        $pathwayParameters['p_cutoff'],
+                    ],
+                    $this->model->getAbsoluteJobDirectory(),
+                    null,
+                    function ($type, $buffer) {
+                        $this->log($buffer, false);
+                    }
+                );
+                if (file_exists($gseaReport) && is_dir($gseaReport)) {
+                    Utils::recursiveChmod($gseaReport, 0777);
+                    $gseaReportUrl = \Storage::disk('public')->url($gseaOutputDir);
+                    $gseaIndexPath = $gseaOutputDir . '/gsea_report/index.html';
+                    $gseaIndexAbsolute = $this->model->absoluteJobPath($gseaIndexPath);
+                    if (file_exists($gseaIndexAbsolute)) {
+                        $gseaIndexUrl = \Storage::disk('public')->url($gseaIndexPath);
+                        $this->setOutput('gseaReportFile', ['path' => $gseaIndexPath, 'url' => $gseaIndexUrl]);
+                        $this->model->save();
+                    }
+                }
+                $this->log('GSEA analysis (fgsea) completed.');
+            } catch (\Throwable $e) {
+                $this->log('Warning: GSEA analysis (fgsea) failed: ' . $e->getMessage());
+            }
+        }
     }
 
     /**

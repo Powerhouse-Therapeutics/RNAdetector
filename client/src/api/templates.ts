@@ -20,3 +20,33 @@ export async function downloadTemplate(name: string): Promise<void> {
   a.click();
   window.URL.revokeObjectURL(url);
 }
+
+/* --- Analysis Templates (saved configs) --- */
+
+export interface AnalysisTemplate {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  parameters: Record<string, unknown>;
+  user_id: number;
+  created_at: string;
+}
+
+export async function listAnalysisTemplates(signal?: AbortSignal): Promise<AnalysisTemplate[]> {
+  const { data } = await client.get('/analysis-templates', { signal });
+  const result = data?.data ?? data;
+  if (!Array.isArray(result)) return [];
+  return result;
+}
+
+export async function saveAnalysisTemplate(
+  template: { name: string; description: string; type: string; parameters: Record<string, unknown> },
+): Promise<AnalysisTemplate> {
+  const { data } = await client.post('/analysis-templates', template);
+  return data?.data ?? data;
+}
+
+export async function deleteAnalysisTemplate(id: string): Promise<void> {
+  await client.delete(`/analysis-templates/${id}`);
+}

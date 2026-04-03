@@ -7,6 +7,7 @@ import {
 import {
   Biotech, AcUnit, BubbleChart, CompareArrows, AccountTree, Groups,
   Speed, Storage, CheckCircle, Schedule, TrendingUp, Memory,
+  WarningAmber,
 } from '@mui/icons-material';
 import type { Job, ServerStatus, Reference } from '@/types';
 import client from '@/api/client';
@@ -242,6 +243,35 @@ export default function DashboardPage() {
                       unit="GB"
                       color="#BC8CFF"
                     />
+                    {serverStatus.disk_total_gb != null && serverStatus.disk_free_gb != null && (
+                      <ResourceBar
+                        label="Disk"
+                        icon={<Storage />}
+                        used={+(serverStatus.disk_total_gb - serverStatus.disk_free_gb).toFixed(1)}
+                        total={serverStatus.disk_total_gb}
+                        unit="GB"
+                        color="#3FB950"
+                      />
+                    )}
+                    {serverStatus.disk_warning && (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.5,
+                          py: 1,
+                          borderRadius: '8px',
+                          bgcolor: 'rgba(210, 153, 34, 0.08)',
+                          border: '1px solid rgba(210, 153, 34, 0.2)',
+                        }}
+                      >
+                        <WarningAmber sx={{ color: '#D29922', fontSize: 16 }} />
+                        <Typography variant="caption" sx={{ color: '#D29922', fontWeight: 500, lineHeight: 1.4 }}>
+                          Low disk space! Only {serverStatus.disk_free_gb} GB free. Consider cleaning old job data.
+                        </Typography>
+                      </Box>
+                    )}
                   </Stack>
                 ) : (
                   <Typography variant="body2" sx={{ color: '#8B949E', fontStyle: 'italic' }}>

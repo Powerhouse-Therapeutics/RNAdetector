@@ -75,6 +75,10 @@ export interface ServerStatus {
   used_cores: number;
   docker_running: boolean;
   uptime: string;
+  disk_total_gb?: number;
+  disk_free_gb?: number;
+  disk_usage_percent?: number;
+  disk_warning?: boolean;
 }
 
 export interface FileEntry {

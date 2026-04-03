@@ -14,6 +14,8 @@ use App\Jobs\Types\Traits\ConvertsSamToBamTrait;
 use App\Jobs\Types\Traits\HandlesCompressedFastqTrait;
 use App\Jobs\Types\Traits\HasCommonParameters;
 use App\Jobs\Types\Traits\IndexesBAMTrait;
+use App\Jobs\Types\Traits\RunFusionDetectionTrait;
+use App\Jobs\Types\Traits\RunQualityControlTrait;
 use App\Jobs\Types\Traits\RunTrimGaloreTrait;
 use App\Jobs\Types\Traits\UseAlignmentTrait;
 use App\Jobs\Types\Traits\UseCountingTrait;
@@ -29,8 +31,8 @@ use Illuminate\Validation\Rule;
 
 class LongRnaJobType extends AbstractJob
 {
-    use HasCommonParameters, ConvertsSamToBamTrait, RunTrimGaloreTrait, UseAlignmentTrait, UseCountingTrait, HandlesCompressedFastqTrait;
-    use UseTranscriptome, UseGenome, UseGenomeAnnotation, IndexesBAMTrait, UsesJBrowseTrait;
+    use HasCommonParameters, ConvertsSamToBamTrait, RunTrimGaloreTrait, RunQualityControlTrait, UseAlignmentTrait, UseCountingTrait, HandlesCompressedFastqTrait;
+    use UseTranscriptome, UseGenome, UseGenomeAnnotation, IndexesBAMTrait, UsesJBrowseTrait, RunFusionDetectionTrait;
 
     /**
      * Returns an array containing for each input parameter an help detailing its content and use.
@@ -192,7 +194,11 @@ class LongRnaJobType extends AbstractJob
         $bamOutput = null;
         $count = true;
         $makeJBrowse = true;
+        $qcReportPath = null;
+        $fusionResult = null;
         if ($inputType === self::FASTQ) {
+            // Run quality control (non-blocking - failures are logged but don't stop the pipeline)
+            $qcReportPath = $this->runQualityControl($this->model, $paired, $firstInputFile, $secondInputFile, $threads);
             $this->log('Checking if input is compressed...');
             $firstInputFile = self::checksForCompression($this->model, $firstInputFile);
             $secondInputFile = self::checksForCompression($this->model, $secondInputFile);
@@ -250,6 +256,13 @@ class LongRnaJobType extends AbstractJob
                     );
                     $makeJBrowse = $count = false;
                     break;
+            }
+            // Fusion gene detection (non-blocking, STAR only)
+            if ($algorithm === self::STAR && $countingInputFile) {
+                $enableFusion = (bool)$this->model->getParameter('enable_fusion_detection', true);
+                if ($enableFusion) {
+                    $fusionResult = $this->runFusionDetection($this->model, $countingInputFile, $this->getGenomeAnnotation(), $this->getGenome(), $threads);
+                }
             }
             if ($countingInputFile) {
                 $bamOutput = $this->getFilePaths($countingInputFile);
@@ -320,6 +333,12 @@ class LongRnaJobType extends AbstractJob
                 'path' => $harmonizedTxFile,
                 'url'  => $harmonizedTxUrl,
             ];
+        }
+        if ($qcReportPath !== null) {
+            $output['qcReport'] = $qcReportPath;
+        }
+        if ($fusionResult !== null) {
+            $output['fusionResults'] = $fusionResult;
         }
         $this->model->setOutput($output);
         $this->log('Analysis completed.');

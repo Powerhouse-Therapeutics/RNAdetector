@@ -14,6 +14,7 @@ use App\Jobs\Types\Traits\ConvertsSamToBamTrait;
 use App\Jobs\Types\Traits\HandlesCompressedFastqTrait;
 use App\Jobs\Types\Traits\HasCommonParameters;
 use App\Jobs\Types\Traits\IndexesBAMTrait;
+use App\Jobs\Types\Traits\RunQualityControlTrait;
 use App\Jobs\Types\Traits\RunTrimGaloreTrait;
 use App\Jobs\Types\Traits\UseGenome;
 use App\Jobs\Types\Traits\UseGenomeAnnotation;
@@ -27,7 +28,7 @@ use Illuminate\Validation\Rule;
 class CircRnaJobType extends AbstractJob
 {
 
-    use HasCommonParameters, ConvertsBamToFastqTrait, RunTrimGaloreTrait, ConvertsSamToBamTrait, HandlesCompressedFastqTrait;
+    use HasCommonParameters, ConvertsBamToFastqTrait, RunTrimGaloreTrait, RunQualityControlTrait, ConvertsSamToBamTrait, HandlesCompressedFastqTrait;
     use UseGenome, UseGenomeAnnotation, IndexesBAMTrait, UsesJBrowseTrait;
 
     /**
@@ -461,7 +462,10 @@ class CircRnaJobType extends AbstractJob
                 $firstInputFile
             );
         }
+        $qcReportPath = null;
         if ($inputType === self::FASTQ) {
+            // Run quality control (non-blocking - failures are logged but don't stop the pipeline)
+            $qcReportPath = $this->runQualityControl($this->model, $paired, $firstInputFile, $secondInputFile, $threads);
             $this->log('Checking if input is compressed...');
             $firstInputFile = self::checksForCompression($this->model, $firstInputFile);
             $secondInputFile = self::checksForCompression($this->model, $secondInputFile);
@@ -563,21 +567,23 @@ class CircRnaJobType extends AbstractJob
             $this->getGenomeAnnotation('human_circ_annotation_name')
         );
         $this->log('CircRNA Analysis completed!');
-        $this->model->setOutput(
-            [
-                'type'              => self::OUT_TYPE_ANALYSIS_HARMONIZED,
-                'outputFile'        => [
-                    'path' => $circOutput,
-                    'url'  => $circOutputUrl,
-                ],
-                'outputBamFile'     => $this->getFilePathsForOutput($bamOutput),
-                'outputJBrowseFile' => $this->getFilePathsForOutput($jbrowseConfig),
-                'harmonizedFile'    => [
-                    'path' => $circHarmonized,
-                    'url'  => $circHarmonizedUrl,
-                ],
-            ]
-        );
+        $outputData = [
+            'type'              => self::OUT_TYPE_ANALYSIS_HARMONIZED,
+            'outputFile'        => [
+                'path' => $circOutput,
+                'url'  => $circOutputUrl,
+            ],
+            'outputBamFile'     => $this->getFilePathsForOutput($bamOutput),
+            'outputJBrowseFile' => $this->getFilePathsForOutput($jbrowseConfig),
+            'harmonizedFile'    => [
+                'path' => $circHarmonized,
+                'url'  => $circHarmonizedUrl,
+            ],
+        ];
+        if ($qcReportPath !== null) {
+            $outputData['qcReport'] = $qcReportPath;
+        }
+        $this->model->setOutput($outputData);
         $this->model->save();
     }
 

@@ -8,6 +8,14 @@ export async function getServerStatus(signal?: AbortSignal): Promise<ServerStatu
   return result as ServerStatus;
 }
 
+export async function checkDiskSpace(signal?: AbortSignal): Promise<{ warning: boolean; freeGb: number }> {
+  const status = await getServerStatus(signal);
+  if (!status || status.disk_warning == null) {
+    return { warning: false, freeGb: -1 };
+  }
+  return { warning: !!status.disk_warning, freeGb: status.disk_free_gb ?? -1 };
+}
+
 export async function getPackages(signal?: AbortSignal) {
   const { data } = await client.get('/server/packages', { signal });
   if (!data || typeof data !== 'object') return { data: [] };
