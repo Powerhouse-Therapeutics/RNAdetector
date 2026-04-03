@@ -474,25 +474,48 @@ export default function AnalysisPage() {
 
       if (isSequencing(analysisType)) {
         const algoBackend = ALGO_MAP[seqParams.algorithm] || seqParams.algorithm.toLowerCase();
-        backendParams = {
-          paired: seqParams.inputType === 'paired',
-          inputType: seqParams.inputFormat === 'BAM' ? 'BAM' : 'fastq',
-          firstInputFile: samples[0]?.r1Path ?? '',
-          algorithm: algoBackend,
-          threads: seqParams.threads,
-          samples: samples.map((s) => ({ name: s.name, r1: s.r1Path, r2: s.r2Path })),
-        };
-        if (seqParams.inputType === 'paired' && samples[0]?.r2Path) {
-          backendParams.secondInputFile = samples[0].r2Path;
-        }
+        const isPaired = seqParams.inputType === 'paired';
         const ref = seqParams.referenceId ? references.find((r) => r.id === seqParams.referenceId) : null;
-        if (ref) backendParams.genome = ref.name;
         const ann = seqParams.annotationId ? annotations.find((a) => a.id === seqParams.annotationId) : null;
-        if (ann) backendParams.annotation = ann.name;
-        if (algoBackend === 'salmon' && ref) backendParams.transcriptome = ref.name;
-        if (algoBackend !== 'salmon') backendParams.countingAlgorithm = 'feature-counts';
-        backendParams.generate_report = true;
-        backendParams.group_colors = groupColors;
+
+        // Distribute threads across parallel samples (min 8 per sample)
+        const totalThreads = seqParams.threads;
+        const numSamples = samples.length || 1;
+        const threadsPerSample = Math.max(8, Math.floor(totalThreads / numSamples));
+
+        // Submit one job per sample in parallel
+        const jobPromises = samples.map(async (sample, idx) => {
+          const sampleParams: Record<string, unknown> = {
+            paired: isPaired,
+            inputType: seqParams.inputFormat === 'BAM' ? 'BAM' : 'fastq',
+            firstInputFile: sample.r1Path,
+            algorithm: algoBackend,
+            threads: threadsPerSample,
+            memory_gb: Math.max(16, Math.floor(seqParams.memoryGB / numSamples)),
+          };
+          if (isPaired && sample.r2Path) {
+            sampleParams.secondInputFile = sample.r2Path;
+          }
+          if (ref) sampleParams.genome = ref.name;
+          if (ann) sampleParams.annotation = ann.name;
+          if (algoBackend === 'salmon' && ref) sampleParams.transcriptome = ref.name;
+          if (algoBackend !== 'salmon') sampleParams.countingAlgorithm = 'feature-counts';
+
+          const sampleName = sample.name || `Sample_${idx + 1}`;
+          const sampleJobName = numSamples > 1 ? `${jobName} - ${sampleName}` : jobName;
+
+          const job = await createJob({
+            name: sampleJobName,
+            type: (typeMap[analysisType] || analysisType) as any,
+            parameters: sampleParams,
+          });
+          await submitJob(job.id);
+          return job;
+        });
+
+        await Promise.all(jobPromises);
+        navigate('/jobs');
+        return;
       } else if (analysisType === 'sample_group') {
         backendParams = { jobs: sgParams.selectedJobIds };
       } else if (analysisType === 'diff_expr') {
