@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   Visibility, Download, Delete, Refresh,
-  KeyboardArrowDown, ErrorOutline,
+  KeyboardArrowDown, KeyboardArrowRight, ErrorOutline,
 } from '@mui/icons-material';
 import type { Job, JobStatus } from '@/types';
 import { fetchJobs, fetchJob, deleteJob } from '@/api/jobs';
@@ -325,6 +325,81 @@ function DetailPanel({ job, detailJob, loading }: DetailPanelProps) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Batch grouping types                                               */
+/* ------------------------------------------------------------------ */
+
+interface BatchGroup {
+  kind: 'batch';
+  batchId: string;
+  batchName: string;
+  jobs: Job[];
+  status: JobStatus;
+  type: string;
+  created_at: string;
+}
+
+interface SingleJob {
+  kind: 'single';
+  job: Job;
+}
+
+type DisplayRow = BatchGroup | SingleJob;
+
+/** Compute an aggregate status for a batch of jobs. */
+function batchStatus(jobs: Job[]): JobStatus {
+  if (jobs.some((j) => j.status === 'processing')) return 'processing';
+  if (jobs.some((j) => j.status === 'queued')) return 'queued';
+  if (jobs.every((j) => j.status === 'completed')) return 'completed';
+  if (jobs.every((j) => j.status === 'failed')) return 'failed';
+  if (jobs.some((j) => j.status === 'failed') && jobs.every((j) => j.status === 'completed' || j.status === 'failed')) return 'completed';
+  if (jobs.some((j) => j.status === 'ready')) return 'ready';
+  return 'processing';
+}
+
+/** Group jobs by batch_id parameter; jobs without batch_id are standalone. */
+function groupIntoBatches(jobs: Job[]): DisplayRow[] {
+  const batches = new Map<string, Job[]>();
+  const standalone: Job[] = [];
+
+  for (const job of jobs) {
+    const bid = job.parameters?.batch_id as string | undefined;
+    if (bid) {
+      const list = batches.get(bid);
+      if (list) list.push(job);
+      else batches.set(bid, [job]);
+    } else {
+      standalone.push(job);
+    }
+  }
+
+  const rows: DisplayRow[] = [];
+  const seen = new Set<string>();
+
+  // Preserve original order: walk through jobs in order, emit batch row on first encounter
+  for (const job of jobs) {
+    const bid = job.parameters?.batch_id as string | undefined;
+    if (bid) {
+      if (!seen.has(bid)) {
+        seen.add(bid);
+        const batchJobs = batches.get(bid)!;
+        rows.push({
+          kind: 'batch',
+          batchId: bid,
+          batchName: (batchJobs[0].parameters?.batch_name as string) || batchJobs[0].name,
+          jobs: batchJobs,
+          status: batchStatus(batchJobs),
+          type: batchJobs[0].type,
+          created_at: batchJobs[0].created_at,
+        });
+      }
+    } else {
+      rows.push({ kind: 'single', job });
+    }
+  }
+  return rows;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -337,10 +412,13 @@ export default function JobsPage() {
   const [rowsPerPage, setRowsPerPage] = useState(15);
   const [total, setTotal] = useState(0);
 
-  // Expanded row state: job id -> detailed Job (or null while loading)
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  // Expanded row state: job id or batch id
+  const [expandedId, setExpandedId] = useState<number | string | null>(null);
   const [detailJob, setDetailJob] = useState<Job | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Expanded batch: which batch_id has its sub-jobs visible
+  const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null);
 
   const notify = useNotificationStore((s) => s.show);
 
@@ -401,7 +479,7 @@ export default function JobsPage() {
 
   // When expanded job is active, poll its detail every 5s
   useEffect(() => {
-    if (expandedId === null) return;
+    if (expandedId === null || typeof expandedId !== 'number') return;
     loadDetail(expandedId, true);
     const expandedJob = jobs.find((j) => j.id === expandedId);
     const isActive = expandedJob && (expandedJob.status === 'processing' || expandedJob.status === 'queued');
@@ -410,7 +488,7 @@ export default function JobsPage() {
     return () => clearInterval(interval);
   }, [expandedId, jobs, loadDetail]);
 
-  /* ---- Expand / collapse ---- */
+  /* ---- Expand / collapse for single job detail panel ---- */
   const toggleExpand = (id: number) => {
     if (expandedId === id) {
       setExpandedId(null);
@@ -418,6 +496,28 @@ export default function JobsPage() {
     } else {
       setExpandedId(id);
       setDetailJob(null);
+    }
+  };
+
+  /* ---- Expand / collapse for batch sub-jobs ---- */
+  const toggleBatch = (batchId: string) => {
+    setExpandedBatchId((prev) => (prev === batchId ? null : batchId));
+  };
+
+  /* ---- Delete all jobs in a batch ---- */
+  const handleDeleteBatch = async (batchJobs: Job[]) => {
+    const deletable = batchJobs.filter((j) => ['ready', 'completed', 'failed'].includes(j.status));
+    if (deletable.length === 0) {
+      notify('No deletable jobs in this batch', 'error');
+      return;
+    }
+    if (!window.confirm(`Delete ${deletable.length} job(s) from this batch?`)) return;
+    try {
+      await Promise.all(deletable.map((j) => deleteJob(j.id)));
+      notify(`${deletable.length} job(s) deleted`, 'success');
+      loadJobs();
+    } catch {
+      notify('Failed to delete some jobs', 'error');
     }
   };
 
@@ -447,10 +547,13 @@ export default function JobsPage() {
     return map;
   }, [jobs]);
 
-  /* ---- Filter ---- */
-  const filteredJobs = statusFilter === 'all'
-    ? jobs
-    : jobs.filter((j) => j.status === statusFilter);
+  /* ---- Group into batches and filter ---- */
+  const displayRows = useMemo(() => {
+    const filtered = statusFilter === 'all'
+      ? jobs
+      : jobs.filter((j) => j.status === statusFilter);
+    return groupIntoBatches(filtered);
+  }, [jobs, statusFilter]);
 
   /* ---- Status chip renderer ---- */
   const renderStatusChip = (job: Job) => {
@@ -504,6 +607,46 @@ export default function JobsPage() {
           }}
         />
         {job.status === 'failed' && (
+          <ErrorOutline sx={{ color: '#F85149', fontSize: 16 }} />
+        )}
+      </Stack>
+    );
+  };
+
+  /** Render a status chip for a batch group */
+  const renderBatchStatusChip = (batch: BatchGroup) => {
+    const sc = statusConfig[batch.status];
+    const completedCount = batch.jobs.filter((j) => j.status === 'completed').length;
+    const totalCount = batch.jobs.length;
+    const isAnimated = batch.status === 'processing' || batch.status === 'queued';
+
+    let label = sc.label;
+    if (batch.status === 'processing' || batch.status === 'queued') {
+      label = `${completedCount}/${totalCount} done`;
+    } else if (batch.status === 'completed') {
+      label = `All ${totalCount} done`;
+    }
+
+    return (
+      <Stack direction="row" spacing={0.5} alignItems="center">
+        <Chip
+          label={label}
+          size="small"
+          sx={{
+            bgcolor: `${sc.color}15`,
+            color: sc.color,
+            fontWeight: 600,
+            fontFamily: 'JetBrains Mono',
+            fontSize: '0.72rem',
+            letterSpacing: '0.01em',
+            border: `1px solid ${sc.color}20`,
+            transition: 'all 200ms ease',
+            ...(isAnimated && {
+              animation: `${subtlePulse} 2.4s ease-in-out infinite`,
+            }),
+          }}
+        />
+        {batch.jobs.some((j) => j.status === 'failed') && (
           <ErrorOutline sx={{ color: '#F85149', fontSize: 16 }} />
         )}
       </Stack>
@@ -604,7 +747,7 @@ export default function JobsPage() {
                   ))}
                 </TableRow>
               ))
-            ) : filteredJobs.length === 0 ? (
+            ) : displayRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} align="center" sx={{ py: 6, borderBottom: 'none' }}>
                   <Typography variant="body2" sx={{ color: '#484F58', fontStyle: 'italic' }}>
@@ -613,7 +756,204 @@ export default function JobsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredJobs.map((job) => {
+              displayRows.map((row) => {
+                if (row.kind === 'batch') {
+                  const isBatchExpanded = expandedBatchId === row.batchId;
+                  return (
+                    <React.Fragment key={`batch-${row.batchId}`}>
+                      {/* Batch header row */}
+                      <TableRow
+                        hover
+                        onClick={() => toggleBatch(row.batchId)}
+                        sx={{
+                          cursor: 'pointer',
+                          transition: 'background-color 200ms ease',
+                          '& > td': {
+                            borderBottom: isBatchExpanded ? 'none' : '1px solid rgba(88, 166, 255, 0.04)',
+                            py: 1.5,
+                          },
+                          '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.04) !important' },
+                          bgcolor: 'rgba(88, 166, 255, 0.02)',
+                        }}
+                      >
+                        <TableCell sx={{ width: 48, pr: 0 }}>
+                          <IconButton
+                            size="small"
+                            sx={{
+                              color: '#58A6FF',
+                              transition: 'transform 200ms ease, color 200ms ease',
+                              transform: isBatchExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                            }}
+                          >
+                            <KeyboardArrowRight />
+                          </IconButton>
+                        </TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#C9D1D9' }}>
+                              {row.batchName}
+                            </Typography>
+                            <Chip
+                              label={`${row.jobs.length} samples`}
+                              size="small"
+                              sx={{
+                                bgcolor: 'rgba(88, 166, 255, 0.08)',
+                                color: '#58A6FF',
+                                fontWeight: 600,
+                                fontSize: '0.68rem',
+                                height: 20,
+                                border: '1px solid rgba(88, 166, 255, 0.15)',
+                              }}
+                            />
+                          </Stack>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={typeLabels[row.type] ?? row.type}
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                              fontSize: '0.72rem',
+                              height: 24,
+                              borderColor: 'rgba(88, 166, 255, 0.12)',
+                              color: '#8B949E',
+                              fontWeight: 500,
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>{renderBatchStatusChip(row)}</TableCell>
+                        <TableCell>
+                          <Stack>
+                            <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono', fontSize: '0.78rem', color: '#C9D1D9' }}>
+                              {new Date(row.created_at).toLocaleDateString()}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#484F58', fontSize: '0.68rem' }}>
+                              {relativeTime(row.created_at)}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                            <Tooltip title="Delete Batch">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteBatch(row.jobs)}
+                                sx={{
+                                  color: '#F85149',
+                                  borderRadius: '6px',
+                                  opacity: 0.6,
+                                  transition: 'all 200ms ease',
+                                  '&:hover': { opacity: 1, bgcolor: 'rgba(248, 81, 73, 0.1)' },
+                                }}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Expanded sub-job rows */}
+                      {isBatchExpanded && row.jobs.map((job) => {
+                        const isSubExpanded = expandedId === job.id;
+                        // Extract sample name from job name (after " - ")
+                        const dashIdx = job.name.indexOf(' - ');
+                        const sampleLabel = dashIdx >= 0 ? job.name.substring(dashIdx + 3) : job.name;
+                        return (
+                          <React.Fragment key={job.id}>
+                            <TableRow
+                              hover
+                              onClick={() => toggleExpand(job.id)}
+                              sx={{
+                                cursor: 'pointer',
+                                transition: 'background-color 200ms ease',
+                                '& > td': {
+                                  borderBottom: isSubExpanded ? 'none' : '1px solid rgba(88, 166, 255, 0.04)',
+                                  py: 1,
+                                },
+                                '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.04) !important' },
+                              }}
+                            >
+                              <TableCell sx={{ width: 48, pr: 0 }}>
+                                <IconButton
+                                  size="small"
+                                  sx={{
+                                    color: '#8B949E',
+                                    transition: 'transform 200ms ease, color 200ms ease',
+                                    transform: isSubExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    '&:hover': { color: '#58A6FF' },
+                                    ml: 2,
+                                  }}
+                                >
+                                  <KeyboardArrowDown sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 400, color: '#8B949E', pl: 2 }}>
+                                  {sampleLabel}
+                                </Typography>
+                              </TableCell>
+                              <TableCell />
+                              <TableCell>{renderStatusChip(job)}</TableCell>
+                              <TableCell />
+                              <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                  <Tooltip title="View Report">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => navigate(`/jobs/${job.id}/report`)}
+                                      sx={{
+                                        color: '#58A6FF',
+                                        borderRadius: '6px',
+                                        transition: 'all 200ms ease',
+                                        '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.1)' },
+                                      }}
+                                    >
+                                      <Visibility sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleDelete(job.id)}
+                                      sx={{
+                                        color: '#F85149',
+                                        borderRadius: '6px',
+                                        opacity: 0.6,
+                                        transition: 'all 200ms ease',
+                                        '&:hover': { opacity: 1, bgcolor: 'rgba(248, 81, 73, 0.1)' },
+                                      }}
+                                    >
+                                      <Delete sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+
+                            {/* Sub-job detail panel */}
+                            <TableRow>
+                              <TableCell
+                                colSpan={6}
+                                sx={{
+                                  p: 0,
+                                  borderBottom: isSubExpanded ? '1px solid rgba(88, 166, 255, 0.06)' : 'none',
+                                }}
+                              >
+                                <Collapse in={isSubExpanded} timeout={250} unmountOnExit>
+                                  <DetailPanel job={job} detailJob={detailJob} loading={detailLoading} />
+                                </Collapse>
+                              </TableCell>
+                            </TableRow>
+                          </React.Fragment>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                }
+
+                // Single (non-batch) job row
+                const job = row.job;
                 const isExpanded = expandedId === job.id;
                 return (
                   <React.Fragment key={job.id}>

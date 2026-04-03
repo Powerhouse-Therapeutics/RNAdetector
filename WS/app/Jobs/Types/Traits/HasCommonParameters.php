@@ -39,6 +39,8 @@ trait HasCommonParameters
             ],
             'threads'          => 'Number of threads for this analysis (Default 16)',
             'memory_gb'        => 'Memory limit in GB for this analysis (Default 32)',
+            'batch_id'         => 'Optional UUID to group multiple sample jobs into a single batch',
+            'batch_name'       => 'Optional display name for the batch (shared across all jobs in the batch)',
         ];
     }
 
@@ -74,6 +76,8 @@ trait HasCommonParameters
             'trimGalore.custom_arguments' => ['filled', 'string'],
             'threads'                     => ['filled', 'integer', 'min:1'],
             'memory_gb'                   => ['filled', 'integer', 'min:1'],
+            'batch_id'                    => ['filled', 'string', 'max:64'],
+            'batch_name'                  => ['filled', 'string', 'max:500'],
         ];
     }
 

@@ -368,6 +368,38 @@ export default function AnalysisPage() {
     ? annotations.filter((a) => a.name.startsWith(selectedRefName))
     : annotations;
 
+  /* ----- batch groups from completed sequencing jobs ----- */
+  const seqJobBatches = useMemo(() => {
+    const batches = new Map<string, { name: string; jobs: Job[] }>();
+    const standalone: Job[] = [];
+    for (const job of completedSeqJobs) {
+      const bid = job.parameters?.batch_id as string | undefined;
+      if (bid) {
+        const existing = batches.get(bid);
+        if (existing) existing.jobs.push(job);
+        else batches.set(bid, { name: (job.parameters?.batch_name as string) || job.name, jobs: [job] });
+      } else {
+        standalone.push(job);
+      }
+    }
+    return { batches, standalone };
+  }, [completedSeqJobs]);
+
+  const toggleBatchJobs = useCallback(
+    (batchJobs: Job[]) => {
+      setSgParams((prev) => {
+        const batchIds = batchJobs.map((j) => j.id);
+        const allSelected = batchIds.every((id) => prev.selectedJobIds.includes(id));
+        if (allSelected) {
+          return { selectedJobIds: prev.selectedJobIds.filter((id) => !batchIds.includes(id)) };
+        }
+        const newIds = new Set([...prev.selectedJobIds, ...batchIds]);
+        return { selectedJobIds: Array.from(newIds) };
+      });
+    },
+    [],
+  );
+
   /* ----- helpers ----- */
   const updateSeq = <K extends keyof SeqParams>(key: K, value: SeqParams[K]) =>
     setSeqParams((prev) => ({ ...prev, [key]: value }));
@@ -483,6 +515,9 @@ export default function AnalysisPage() {
         const numSamples = samples.length || 1;
         const threadsPerSample = Math.max(8, Math.floor(totalThreads / numSamples));
 
+        // Generate a batch_id so all sample jobs can be grouped together
+        const batchId = numSamples > 1 ? crypto.randomUUID() : undefined;
+
         // Submit one job per sample in parallel
         const jobPromises = samples.map(async (sample, idx) => {
           const sampleParams: Record<string, unknown> = {
@@ -493,6 +528,10 @@ export default function AnalysisPage() {
             threads: threadsPerSample,
             memory_gb: Math.max(16, Math.floor(seqParams.memoryGB / numSamples)),
           };
+          if (batchId) {
+            sampleParams.batch_id = batchId;
+            sampleParams.batch_name = jobName;
+          }
           if (isPaired && sample.r2Path) {
             sampleParams.secondInputFile = sample.r2Path;
           }
@@ -1020,7 +1059,7 @@ export default function AnalysisPage() {
     content: (
       <Stack spacing={2}>
         <Typography variant="body2" color="text.secondary">
-          Select completed sequencing analysis jobs to group together.
+          Select completed sequencing analysis jobs to group together. Batches can be selected as a whole.
         </Typography>
         {loadingJobs ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -1033,7 +1072,83 @@ export default function AnalysisPage() {
         ) : (
           <Paper sx={paperSx}>
             <Stack spacing={0}>
-              {completedSeqJobs.map((job) => (
+              {/* Render batch groups first */}
+              {Array.from(seqJobBatches.batches.entries()).map(([batchId, batch]) => {
+                const batchIds = batch.jobs.map((j) => j.id);
+                const allSelected = batchIds.every((id) => sgParams.selectedJobIds.includes(id));
+                const someSelected = !allSelected && batchIds.some((id) => sgParams.selectedJobIds.includes(id));
+                return (
+                  <Box key={`batch-${batchId}`}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={allSelected}
+                          indeterminate={someSelected}
+                          onChange={() => toggleBatchJobs(batch.jobs)}
+                          sx={{ color: '#30363D', '&.Mui-checked': { color: '#58A6FF' }, '&.MuiCheckbox-indeterminate': { color: '#58A6FF' }, transition: 'color 200ms ease' }}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body2" fontWeight={600}>
+                            {batch.name}
+                            <Typography component="span" variant="caption" sx={{ ml: 1, color: '#58A6FF' }}>
+                              (batch - {batch.jobs.length} samples)
+                            </Typography>
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Type: {batch.jobs[0].type.replace(/_/g, ' ')} | Created:{' '}
+                            {new Date(batch.jobs[0].created_at).toLocaleDateString()}
+                          </Typography>
+                        </Box>
+                      }
+                      sx={{
+                        mx: 0,
+                        py: 1,
+                        px: 1.5,
+                        borderBottom: '1px solid #21262D',
+                        borderRadius: '6px',
+                        mb: 0.5,
+                        transition: 'background 200ms ease',
+                        bgcolor: 'rgba(88, 166, 255, 0.02)',
+                        '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.06)' },
+                      }}
+                    />
+                    {/* Individual batch jobs indented */}
+                    {batch.jobs.map((job) => (
+                      <FormControlLabel
+                        key={job.id}
+                        control={
+                          <Checkbox
+                            checked={sgParams.selectedJobIds.includes(job.id)}
+                            onChange={() => toggleSeqJob(job.id)}
+                            sx={{ color: '#30363D', '&.Mui-checked': { color: '#58A6FF' }, transition: 'color 200ms ease' }}
+                          />
+                        }
+                        label={
+                          <Box>
+                            <Typography variant="body2" fontWeight={400} sx={{ color: '#8B949E' }}>
+                              {job.name}
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{
+                          mx: 0,
+                          py: 0.5,
+                          px: 1.5,
+                          pl: 5,
+                          borderBottom: '1px solid #21262D',
+                          mb: 0,
+                          transition: 'background 200ms ease',
+                          '&:hover': { bgcolor: 'rgba(88, 166, 255, 0.04)' },
+                        }}
+                      />
+                    ))}
+                  </Box>
+                );
+              })}
+              {/* Render standalone jobs */}
+              {seqJobBatches.standalone.map((job) => (
                 <FormControlLabel
                   key={job.id}
                   control={
