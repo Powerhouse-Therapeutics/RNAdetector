@@ -11,6 +11,7 @@ namespace App\Jobs\Types;
 
 use App\Exceptions\ProcessingJobException;
 use App\Jobs\Types\Traits\ConvertsSamToBamTrait;
+use App\Jobs\Types\Traits\GeneratesReportTrait;
 use App\Jobs\Types\Traits\HandlesCompressedFastqTrait;
 use App\Jobs\Types\Traits\HasCommonParameters;
 use App\Jobs\Types\Traits\IndexesBAMTrait;
@@ -32,7 +33,7 @@ use Illuminate\Validation\Rule;
 class LongRnaJobType extends AbstractJob
 {
     use HasCommonParameters, ConvertsSamToBamTrait, RunTrimGaloreTrait, RunQualityControlTrait, UseAlignmentTrait, UseCountingTrait, HandlesCompressedFastqTrait;
-    use UseTranscriptome, UseGenome, UseGenomeAnnotation, IndexesBAMTrait, UsesJBrowseTrait, RunFusionDetectionTrait;
+    use UseTranscriptome, UseGenome, UseGenomeAnnotation, IndexesBAMTrait, UsesJBrowseTrait, RunFusionDetectionTrait, GeneratesReportTrait;
 
     /**
      * Returns an array containing for each input parameter an help detailing its content and use.
@@ -342,8 +343,12 @@ class LongRnaJobType extends AbstractJob
             $output['fusionResults'] = $fusionResult;
         }
         $this->model->setOutput($output);
-        $this->log('Analysis completed.');
         $this->model->save();
+
+        // Generate HTML report (non-blocking)
+        $this->generateReport($this->model);
+
+        $this->log('Analysis completed.');
     }
 
 

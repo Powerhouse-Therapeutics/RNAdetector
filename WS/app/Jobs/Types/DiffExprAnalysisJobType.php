@@ -11,6 +11,7 @@ namespace App\Jobs\Types;
 
 
 use App\Exceptions\ProcessingJobException;
+use App\Jobs\Types\Traits\GeneratesReportTrait;
 use App\Jobs\Types\Traits\HasCommonParameters;
 use App\Models\Job;
 use App\Utils;
@@ -19,7 +20,7 @@ use Illuminate\Validation\Rule;
 
 class DiffExprAnalysisJobType extends AbstractJob
 {
-    use HasCommonParameters;
+    use HasCommonParameters, GeneratesReportTrait;
 
     private const  LIMMA                        = 'limma';
     private const  DESEQ                        = 'deseq';
@@ -663,6 +664,9 @@ class DiffExprAnalysisJobType extends AbstractJob
             $this->setOutput('enhancedReportFile', ['path' => $enhancedReportPath, 'url' => $enhancedReportUrl]);
             $this->model->save();
         }
+
+        // Generate HTML report (non-blocking)
+        $this->generateReport($this->model);
     }
 
     /**
