@@ -59,12 +59,12 @@ abstract class AbstractJob
     /**
      * @var int
      */
-    protected $defaultNumberOfThreads = 16;
+    protected $defaultNumberOfThreads = 32;
 
     /**
      * @var int
      */
-    protected $defaultMemoryGB = 32;
+    protected $defaultMemoryGB = 64;
 
     /**
      * @var \App\Models\Job

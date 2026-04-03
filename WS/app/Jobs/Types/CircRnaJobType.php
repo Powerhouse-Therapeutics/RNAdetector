@@ -437,7 +437,7 @@ class CircRnaJobType extends AbstractJob
         $trimGaloreQuality = (int)$this->getParameter('trimGalore.quality', 20);
         $trimGaloreLength = (int)$this->getParameter('trimGalore.length', 40);
         $trimGaloreHardTrim = (bool)$this->getParameter('trimGalore.hardTrim', true);
-        $threads = (int)$this->getParameter('threads', 1);
+        $threads = (int)$this->getParameter('threads', $this->defaultNumberOfThreads);
         $ciriSpanningDistance = (int)$this->getParameter('ciriSpanningDistance', 200000);
         if ($ciriSpanningDistance <= 0) {
             throw new ProcessingJobException('CIRI spanning distance must be a positive integer, got: ' . $ciriSpanningDistance);

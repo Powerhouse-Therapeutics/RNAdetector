@@ -255,8 +255,8 @@ export default function AnalysisPage() {
     algorithm: config.algorithms[0] || '',
     referenceId: '',
     annotationId: '',
-    threads: 4,
-    memoryGB: 8,
+    threads: 32,
+    memoryGB: 64,
   });
   /* ----- sample management state ----- */
   const [samples, setSamples] = useState<SampleEntry[]>([]);

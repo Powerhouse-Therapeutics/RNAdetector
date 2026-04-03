@@ -140,7 +140,7 @@ class SmallRnaJobType extends AbstractJob
         $trimGaloreEnable = (bool)$this->getParameter('trimGalore.enable', $inputType === self::FASTQ);
         $trimGaloreQuality = (int)$this->getParameter('trimGalore.quality', 20);
         $trimGaloreLength = (int)$this->getParameter('trimGalore.length', 14);
-        $threads = (int)$this->getParameter('threads', 1);
+        $threads = (int)$this->getParameter('threads', $this->defaultNumberOfThreads);
         $algorithm = $this->getParameter('algorithm', self::STAR);
         $countingAlgorithm = $this->getParameter('countingAlgorithm', self::FEATURECOUNTS_COUNTS);
         if (!in_array($algorithm, self::VALID_ALIGN_QUANT_METHODS, true)) {
