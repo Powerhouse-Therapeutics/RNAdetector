@@ -75,7 +75,14 @@ fi
 #### Counting ####
 PAIRED_ARG=""
 if [ "$PAIRED" = "true" ]; then
-  PAIRED_ARG="-p --countReadPairs"
+  # --countReadPairs was added in subread 2.0.2. In 2.0.0/2.0.1 it aborts, and
+  # -p alone already means "count fragments (pairs)". Detect at runtime so the
+  # script works against both the bundled 2.0.0 and newer subread builds.
+  if featureCounts 2>&1 | grep -q -- "--countReadPairs"; then
+    PAIRED_ARG="-p --countReadPairs"
+  else
+    PAIRED_ARG="-p"
+  fi
 fi
 # shellcheck disable=SC2086
 if ! featureCounts -T $THREADS $PAIRED_ARG $OTHER_ARGS -a "$GTF_FILE" -o "$OUTPUT" "$INPUT_BAM"; then
